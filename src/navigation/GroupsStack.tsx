@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import GroupsScreen from '../screens/GroupsScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
+import AllTransactionsModal from '../screens/AllTransactionsModal';
 import CalculateModal from '../screens/CalculateModal';
 import CalculateScreen from '../screens/CalculateScreen';
 import ClosingReportScreen from '../screens/ClosingReportScreen';
@@ -28,6 +29,11 @@ export default function GroupsStack() {
         options={{ presentation: 'modal', title: 'Yeni Alan' }}
       />
       <Stack.Screen name="GroupDetail"   component={GroupDetailScreen}   options={{ title: 'Grup Detayı' }} />
+      <Stack.Screen
+        name="AllTransactions"
+        component={AllTransactionsModal}
+        options={{ presentation: 'modal', title: 'Tüm Harcamalar' }}
+      />
 
       {/* ⋯ → Hesapla → modal (aktif space) */}
       <Stack.Screen

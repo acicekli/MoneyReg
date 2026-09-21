@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import { Swipeable, RectButton } from 'react-native-gesture-handler';
 import { transactionAmountInTRY, type Transaction } from '../types/models';
 import { colors, fonts, radius, spacing } from '../theme';
 
@@ -126,7 +126,7 @@ function TransactionRow({
   const renderRightActions = useCallback(() => {
     return (
       <View style={styles.actionsWrap}>
-        <Pressable
+        <RectButton
           style={[styles.actionBtn, styles.editBtn]}
           onPress={() => {
             // Swipe'ı kapat
@@ -136,8 +136,8 @@ function TransactionRow({
           }}
         >
           <Text style={styles.actionBtnText}>Düzenle</Text>
-        </Pressable>
-        <Pressable
+        </RectButton>
+        <RectButton
           style={[styles.actionBtn, styles.deleteBtn]}
           onPress={() => {
             swipeableRef.current?.close();
@@ -146,7 +146,7 @@ function TransactionRow({
           }}
         >
           <Text style={styles.actionBtnText}>Sil</Text>
-        </Pressable>
+        </RectButton>
       </View>
     );
   }, [t, onEdit, onDelete, openRowRef]);
@@ -253,6 +253,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     marginBottom: spacing.sm,
     paddingLeft: spacing.sm,
+    fontFamily: fonts.body,
   },
   actionBtn: {
     width: 90,
@@ -263,7 +264,11 @@ const styles = StyleSheet.create({
   },
   editBtn: { backgroundColor: colors.accent },
   deleteBtn: { backgroundColor: colors.expense },
-  actionBtnText: { color: colors.accentInk, fontSize: 13, fontWeight: '700' },
+  actionBtnText: {
+    color: colors.accentInk,
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+  },
 
   emptyBox: {
     backgroundColor: colors.surface,
@@ -272,6 +277,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: spacing.xl,
     alignItems: 'center',
+    fontFamily: fonts.body,
   },
   emptySub: { color: colors.inkSoft, fontSize: 14 },
 });

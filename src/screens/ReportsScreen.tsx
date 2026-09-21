@@ -189,14 +189,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentBtnActive: { backgroundColor: colors.accent },
-  segmentText: { color: colors.ink, fontSize: 13, fontWeight: '600' },
   segmentTextActive: { color: colors.accentInk },
 
   rangeText: {
     color: colors.inkSoft,
-    fontSize: 12,
+    fontSize: 16,
     textAlign: 'center',
     marginTop: spacing.md,
+    fontFamily: fonts.body,
   },
 
   center: { paddingVertical: spacing.xxl, alignItems: 'center' },
@@ -246,6 +246,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     marginRight: spacing.sm,
+    fontFamily: fonts.body,
   },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rowValue: { color: colors.ink, fontSize: 14, fontWeight: '700' },
@@ -254,6 +255,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     minWidth: 32,
     textAlign: 'right',
+    fontFamily: fonts.body,
   },
 
   barTrack: {

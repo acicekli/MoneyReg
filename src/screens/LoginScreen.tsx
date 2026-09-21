@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -23,6 +23,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const passwordRef = useRef<any>(null);
 
   async function handleLogin() {
     if (!email || !password) {
@@ -65,10 +66,14 @@ export default function LoginScreen({ navigation }: Props) {
             autoComplete="email"
             value={email}
             onChangeText={setEmail}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
           />
 
           <Text style={styles.label}>Şifre</Text>
           <TextInput
+            ref={passwordRef}
             style={styles.input}
             placeholder="••••••••"
             placeholderTextColor={colors.inkSoft}
@@ -76,6 +81,8 @@ export default function LoginScreen({ navigation }: Props) {
             autoComplete="password"
             value={password}
             onChangeText={setPassword}
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
           />
 
           <Pressable

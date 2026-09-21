@@ -145,6 +145,7 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: 13,
     marginBottom: spacing.md,
+    fontFamily: fonts.body,
   },
   sliderWrap: {
     marginVertical: spacing.md,
@@ -154,6 +155,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: spacing.md,
     lineHeight: 16,
+    fontFamily: fonts.body,
   },
   errorBox: {
     backgroundColor: '#F8E1E1',
@@ -168,6 +170,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginTop: spacing.md,
+    fontFamily: fonts.body,
   },
   btn: {
     flex: 1,
@@ -185,13 +188,14 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 15,
     fontWeight: '600',
+    fontFamily: fonts.body,
   },
   btnPrimary: {
     backgroundColor: colors.accent,
   },
   btnPrimaryText: {
     color: colors.accentInk,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontFamily: fonts.body,
   },
 });

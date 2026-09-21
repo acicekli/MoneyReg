@@ -288,6 +288,15 @@ export default function GroupDetailScreen() {
             setDeletedTx(t);
           }}
         />
+
+        <Pressable
+          style={styles.allTxBtn}
+          onPress={() =>
+            navigation.navigate('AllTransactions' as never, { spaceId } as never)
+          }
+        >
+          <Text style={styles.allTxBtnText}>Tüm Harcamalar ›</Text>
+        </Pressable>
       </ScrollView>
 
       <Modal
@@ -474,10 +483,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarExtra: { backgroundColor: colors.inkSoft },
-  avatarText: { color: colors.accentInk, fontWeight: '700', fontSize: 12 },
   membersLink: {
-    color: colors.accent, fontSize: 12,
-    fontWeight: '600', marginLeft: spacing.xs,
+    color: colors.accent, fontSize: 16,
+    fontFamily: fonts.body,
   },
 
   menuBtn: { paddingHorizontal: spacing.sm, paddingVertical: 2 },
@@ -497,6 +505,20 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: fonts.heading, fontSize: 16, color: colors.ink,
     marginBottom: spacing.sm,
+  },
+  allTxBtn: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  allTxBtnText: {
+    color: colors.accent,
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
   },
   emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
 

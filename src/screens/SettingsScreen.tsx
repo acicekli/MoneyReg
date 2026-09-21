@@ -230,6 +230,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.md,
+    fontFamily: fonts.body,
   },
   rowCardPressed: { backgroundColor: colors.surfaceAlt },
 
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
   },
   logoutBtnText: {
     color: colors.accentInk,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontFamily: fonts.body,
   },
 });

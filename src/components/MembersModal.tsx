@@ -212,6 +212,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+    fontFamily: fonts.body,
   },
   memberRowLast: { borderBottomWidth: 0 },
   memberLeft: {
@@ -229,9 +230,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.accentInk, fontWeight: '700', fontSize: 14 },
-  memberName: { color: colors.ink, fontSize: 14, fontWeight: '600' },
-  memberDate: { color: colors.inkSoft, fontSize: 11, marginTop: 2 },
+  memberDate: { color: colors.inkSoft, fontSize: 16, marginTop: 2 },
 
   actionBtn: {
     paddingHorizontal: spacing.md,
@@ -239,12 +238,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.expense,
+    fontFamily: fonts.body,
   },
   actionBtnDisabled: { opacity: 0.5 },
   actionBtnText: {
     color: colors.expense,
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: fonts.body,
   },
 
   closeBtn: {
@@ -256,5 +257,6 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: fonts.body,
   },
 });

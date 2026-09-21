@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import AddExpenseScreen from '../screens/AddExpenseScreen';
+import AllTransactionsModal from '../screens/AllTransactionsModal';
 import { colors, fonts } from '../theme';
 import type { HomeStackParamList } from './types';
 
@@ -21,6 +22,11 @@ export default function HomeStack() {
         name="AddExpense"
         component={AddExpenseScreen}
         options={{ presentation: 'modal', title: 'Harcama Ekle' }}
+      />
+      <Stack.Screen
+        name="AllTransactions"
+        component={AllTransactionsModal}
+        options={{ presentation: 'modal', title: 'Tüm Harcamalar' }}
       />
     </Stack.Navigator>
   );

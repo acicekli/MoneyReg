@@ -120,6 +120,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.expense,
     padding: spacing.md,
+    fontFamily: fonts.body,
   },
   errorText: { color: colors.expense, fontSize: 13 },
   button: {
@@ -128,6 +129,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: 'center',
     marginTop: spacing.xs,
+    fontFamily: fonts.body,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: colors.accentInk, fontSize: 16, fontWeight: '700' },

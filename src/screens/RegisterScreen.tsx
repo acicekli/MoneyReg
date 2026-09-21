@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -24,6 +24,8 @@ export default function RegisterScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const emailRef = useRef<any>(null);
+  const passwordRef = useRef<any>(null);
 
   async function handleRegister() {
     if (!fullName || !email || !password) {
@@ -73,10 +75,14 @@ export default function RegisterScreen({ navigation }: Props) {
             autoComplete="name"
             value={fullName}
             onChangeText={setFullName}
+            returnKeyType="next"
+            onSubmitEditing={() => emailRef.current?.focus()}
+            blurOnSubmit={false}
           />
 
           <Text style={styles.label}>E-posta</Text>
           <TextInput
+            ref={emailRef}
             style={styles.input}
             placeholder="ornek@email.com"
             placeholderTextColor={colors.inkSoft}
@@ -85,10 +91,14 @@ export default function RegisterScreen({ navigation }: Props) {
             autoComplete="email"
             value={email}
             onChangeText={setEmail}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
           />
 
           <Text style={styles.label}>Şifre</Text>
           <TextInput
+            ref={passwordRef}
             style={styles.input}
             placeholder="En az 6 karakter"
             placeholderTextColor={colors.inkSoft}
@@ -96,6 +106,8 @@ export default function RegisterScreen({ navigation }: Props) {
             autoComplete="password-new"
             value={password}
             onChangeText={setPassword}
+            returnKeyType="go"
+            onSubmitEditing={handleRegister}
           />
 
           <Pressable

@@ -38,6 +38,7 @@ import TransactionList, {
   type TransactionListItem,
 } from '../components/TransactionList';
 import TransactionDetailModal from '../components/TransactionDetailModal';
+import UndoToast from '../components/UndoToast';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
 
@@ -145,7 +146,7 @@ export default function HomeScreen() {
         const monthStart = getCurrentMonthStart();
         const [monthlyData, recentData] = await Promise.all([
           getMonthlyTransactions(sid, monthStart),
-          getRecentTransactions(sid, 7),
+          getRecentTransactions(sid, 15),
         ]);
         setMonthly(monthlyData);
         setRecent(recentData);
@@ -323,6 +324,13 @@ export default function HomeScreen() {
                 setDeletedTx(t);
               }}
             />
+
+            <Pressable
+              style={styles.allTxBtn}
+              onPress={() => navigation.navigate('AllTransactions')}
+            >
+              <Text style={styles.allTxBtnText}>Tüm Harcamalar ›</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -344,6 +352,26 @@ export default function HomeScreen() {
             : undefined
         }
 
+      />
+
+      <UndoToast
+        visible={!!deletedTx}
+        message="Harcama silindi"
+        bottomOffset={100}
+        onUndo={() => {
+          if (deletedTx) {
+            setRecent((prev) => [deletedTx, ...prev]);
+            setMonthly((prev) => [deletedTx, ...prev]);
+            setDeletedTx(null);
+          }
+        }}
+        onExpire={async () => {
+          if (deletedTx && user) {
+            await deleteTransaction(user.id, deletedTx.id);
+            setDeletedTx(null);
+            loadData();
+          }
+        }}
       />
 
       <Pressable
@@ -382,6 +410,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: 'center',
+    fontFamily: fonts.body,
   },
   totalAmount: {
     fontFamily: fonts.heading,
@@ -393,6 +422,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: 12,
     color: colors.expense,
+    fontFamily: fonts.body,
   },
   currencyRow: {
     flexDirection: 'row',
@@ -411,12 +441,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
-  currencyText: { color: colors.ink, fontSize: 13, fontWeight: '600' },
   currencyTextActive: { color: colors.accentInk },
 
   sectionTitle: {
     fontFamily: fonts.heading,
-    fontSize: 18,
+    fontSize: 16,
     color: colors.ink,
     marginHorizontal: spacing.lg,
     marginTop: spacing.sm,
@@ -440,6 +469,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  allTxBtn: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  allTxBtnText: {
+    color: colors.accent,
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
+  },
   fab: {
     position: 'absolute',
     right: spacing.lg,

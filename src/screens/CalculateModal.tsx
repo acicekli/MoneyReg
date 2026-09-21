@@ -103,6 +103,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: colors.surface, borderRadius: radius.md,
     borderWidth: 1, borderColor: colors.line, padding: spacing.md,
+    fontFamily: fonts.body,
   },
   left: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatar: {

@@ -187,10 +187,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md, alignItems: 'center',
   },
   btnPrimary: { backgroundColor: colors.accent },
-  btnPrimaryText: { color: colors.accentInk, fontSize: 14, fontWeight: '700' },
   btnGhost: {
     backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.line,
+    fontFamily: fonts.body,
   },
   btnGhostText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
   btnDisabled: { opacity: 0.4 },

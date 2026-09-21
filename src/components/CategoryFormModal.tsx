@@ -199,6 +199,7 @@ const styles = StyleSheet.create({
     height: '100%',
     textAlign: 'center',
     padding: 0,
+    fontFamily: fonts.body,
   },
   nameInput: {
     flex: 1,
@@ -210,11 +211,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink,
     backgroundColor: colors.surface,
+    fontFamily: fonts.body,
   },
   hint: {
     color: colors.inkSoft,
     fontSize: 12,
     marginTop: spacing.sm,
+    fontFamily: fonts.body,
   },
 
   errorBox: {
@@ -231,6 +234,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginTop: spacing.lg,
+    fontFamily: fonts.body,
   },
   btn: {
     flex: 1,

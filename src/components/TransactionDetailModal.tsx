@@ -303,6 +303,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.lg,
+    fontFamily: fonts.body,
   },
   amountValue: {
     fontFamily: fonts.heading,
@@ -317,6 +318,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
+    fontFamily: fonts.body,
   },
   metaLabel: { color: colors.inkSoft, fontSize: 13, fontWeight: '600' },
   metaValue: {
@@ -324,6 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
     textAlign: 'right',
+    fontFamily: fonts.body,
   },
 
   receiptBtn: {
@@ -339,12 +342,14 @@ const styles = StyleSheet.create({
   receiptBtnDisabled: {
     opacity: 0.6,
     backgroundColor: colors.surfaceAlt,
+    fontFamily: fonts.body,
   },
   receiptBtnDisabledText: {
     color: colors.inkSoft,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
+    fontFamily: fonts.body,
   },
 
   btnRow: { flexDirection: 'row', gap: spacing.sm },
@@ -359,9 +364,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  btnGhostText: { color: colors.ink, fontSize: 15, fontWeight: '600' },
   btnPrimary: { backgroundColor: colors.accent },
-  btnPrimaryText: { color: colors.accentInk, fontSize: 15, fontWeight: '700' },
 
   // Fiş görüntüleyici
   receiptViewer: {
@@ -372,6 +375,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    fontFamily: fonts.body,
   },
   receiptImage: {
     width: '100%',
@@ -382,5 +386,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     padding: spacing.md,
+    fontFamily: fonts.body,
   },
 });

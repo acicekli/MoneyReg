@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: 4,
   },
   closedBadgeText: {
-    color: colors.accentInk, fontSize: 11,
-    fontWeight: '700', letterSpacing: 1,
+    color: colors.accentInk, fontSize: 16,
+    fontFamily: fonts.body,
   },
 
   totalBox: {
@@ -245,15 +245,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: colors.accentInk, fontWeight: '700', fontSize: 13 },
-  personName: { color: colors.ink, fontSize: 15, fontWeight: '600' },
-  personTotal: { color: colors.ink, fontSize: 15, fontWeight: '700' },
-  personSummary: { color: colors.inkSoft, fontSize: 12, marginTop: 2 },
+  personSummary: { color: colors.inkSoft, fontSize: 16, marginTop: 2 },
 
   emptyBox: {
     backgroundColor: colors.surface, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.line,
     padding: spacing.xl, alignItems: 'center',
+    fontFamily: fonts.body,
   },
   emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
   emptySub: { color: colors.inkSoft, fontSize: 14 },

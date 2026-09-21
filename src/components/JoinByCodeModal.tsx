@@ -164,6 +164,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    fontFamily: fonts.body,
   },
   btnDisabled: { opacity: 0.6 },
   btnGhost: {

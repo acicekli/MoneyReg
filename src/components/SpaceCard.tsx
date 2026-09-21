@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontFamily: fonts.body,
   },
 
   avatarRow: {
@@ -111,8 +112,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarExtra: { backgroundColor: colors.inkSoft },
-  avatarText: { color: colors.accentInk, fontSize: 13, fontWeight: '700' },
-  noMembers: { color: colors.inkSoft, fontSize: 13, fontStyle: 'italic' },
+  noMembers: { color: colors.inkSoft, fontSize: 16, fontStyle: 'italic' },
 
   bottomRow: {
     flexDirection: 'row',
@@ -121,6 +121,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line,
     paddingTop: spacing.sm,
+    fontFamily: fonts.body,
   },
   totalLabel: { color: colors.inkSoft, fontSize: 13 },
   totalValue: { fontFamily: fonts.heading, fontSize: 20, color: colors.ink },

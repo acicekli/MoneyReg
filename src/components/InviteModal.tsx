@@ -104,6 +104,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: spacing.lg,
     lineHeight: 18,
+    fontFamily: fonts.body,
   },
   codeBox: {
     backgroundColor: colors.surfaceAlt,
@@ -129,8 +130,8 @@ const styles = StyleSheet.create({
   },
   shareBtnText: {
     color: colors.accentInk,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontFamily: fonts.body,
   },
   closeBtn: {
     paddingVertical: spacing.md,
@@ -140,5 +141,6 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: fonts.body,
   },
 });

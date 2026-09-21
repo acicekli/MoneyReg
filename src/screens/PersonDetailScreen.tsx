@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   avatarLargeText: {
-    color: colors.accentInk, fontWeight: '700', fontSize: 24,
+    fontFamily: fonts.body,
   },
   name: {
     fontFamily: fonts.heading, fontSize: 24, color: colors.ink,
@@ -167,6 +167,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.line,
     padding: spacing.xl, alignItems: 'center',
+    fontFamily: fonts.body,
   },
   emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
   emptySub: { color: colors.inkSoft, fontSize: 14 },

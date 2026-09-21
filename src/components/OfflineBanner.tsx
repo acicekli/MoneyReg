@@ -29,11 +29,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  icon: { fontSize: 14 },
+  icon: { fontSize: 16 },
   text: {
     color: colors.accentInk,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 16,
     fontFamily: fonts.body,
   },
 });

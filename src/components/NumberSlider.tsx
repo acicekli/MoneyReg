@@ -97,6 +97,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 24,
     textAlign: 'center',
+    fontFamily: fonts.body,
   },
   sliderWrap: {
     flex: 1,

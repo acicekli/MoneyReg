@@ -41,7 +41,6 @@ import BackgroundSilhouette from '../components/BackgroundSilhouette';
 import { colors, fonts, radius, spacing } from '../theme';
 import { showAlert } from '../lib/alertHelper';
 
-import NumericKeypad from '../components/NumericKeypad';
 import CategoryChip from '../components/CategoryChip';
 import CategoryFormModal from '../components/CategoryFormModal';
 
@@ -251,32 +250,30 @@ export default function AddExpenseScreen() {
     };
   }, [user, isEditing, transactionId, navigation, isOnline]);
 
-  // ---------- Numeric input ----------
-  function handleDigit(d: string) {
+  // ---------- Tutar input ----------
+  function handleAmountChange(text: string) {
     setTouchedAmount(true);
-    setAmountStr((prev) => {
-      if (prev === '0') return d;
-      if (prev.replace(',', '').length >= 10) return prev;
-      return prev + d;
-    });
-  }
-
-  function handleComma() {
-    setTouchedAmount(true);
-    setAmountStr((prev) => (prev.includes(',') ? prev : prev + ','));
-  }
-
-  function handleBackspace() {
-    setTouchedAmount(true);
-    setAmountStr((prev) => {
-      if (prev.length <= 1) return '0';
-      const next = prev.slice(0, -1);
-      return next.length === 0 ? '0' : next;
-    });
+    // Sadece rakam ve virgül
+    let cleaned = text.replace(/[^0-9,]/g, '');
+    // Binlik nokta kalıntıları
+    cleaned = cleaned.replace(/\./g, '');
+    // Birden fazla virgül
+    const parts = cleaned.split(',');
+    if (parts.length > 2) {
+      cleaned = parts[0] + ',' + parts.slice(1).join('');
+    }
+    // Ondalık 2 hane
+    const parts2 = cleaned.split(',');
+    if (parts2[1] && parts2[1].length > 2) {
+      cleaned = parts2[0] + ',' + parts2[1].slice(0, 2);
+    }
+    setAmountStr(cleaned || '0');
   }
 
   const amountNumber = useMemo(() => {
-    const n = parseFloat(amountStr.replace(',', '.'));
+    // Binlik noktaları temizle, virgülü noktaya çevir
+    const normalized = amountStr.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(normalized);
     return Number.isFinite(n) ? n : 0;
   }, [amountStr]);
 
@@ -487,6 +484,7 @@ export default function AddExpenseScreen() {
 
   // ---------- Tarih ----------
   function onChangeDate(event: DateTimePickerEvent, selected?: Date) {
+    // Android'de picker zaten modal olarak açılıp kapanır
     if (Platform.OS !== 'ios') setShowPicker(false);
     if (event.type === 'dismissed') return;
     if (selected) {
@@ -515,10 +513,18 @@ export default function AddExpenseScreen() {
       <BackgroundSilhouette type="receipt" />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.amountCard}>
-          <Text style={styles.amountText}>
-            {CURRENCY_SYMBOL[currency]}
-            {formatAmountString(amountStr)}
-          </Text>
+          <View style={styles.amountRow}>
+            <Text style={styles.amountSymbol}>{CURRENCY_SYMBOL[currency]}</Text>
+            <TextInput
+              style={styles.amountInput}
+              value={formatAmountString(amountStr)}
+              onChangeText={handleAmountChange}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={colors.inkSoft}
+              selectTextOnFocus
+            />
+          </View>
         </View>
 
         <View style={styles.pillRow}>
@@ -538,19 +544,80 @@ export default function AddExpenseScreen() {
 
         <Text style={styles.label}>Tarih</Text>
         <Pressable style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <Text style={styles.dateIcon}>📅</Text>
           <Text style={styles.dateBtnText}>{formatDateTR(dateISO)}</Text>
-          <Text style={styles.dateBtnHint}>Değiştir</Text>
+          <Text style={styles.dateBtnHint}>Değiştir ›</Text>
         </Pressable>
 
-        {showPicker && (
-          <DateTimePicker
-            value={isoToDate(dateISO)}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            maximumDate={new Date()}
-            onChange={onChangeDate}
-          />
-        )}
+        <Modal
+          visible={showPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowPicker(false)}
+        >
+          <Pressable
+            style={styles.dateModalBackdrop}
+            onPress={() => setShowPicker(false)}
+          >
+            <Pressable
+              style={styles.dateModalSheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.dateModalTitle}>Tarih Seç</Text>
+              <Text style={styles.dateModalValue}>
+                {formatDateTR(dateISO)}
+              </Text>
+
+              <View style={styles.dateModalPickerWrap}>
+                {Platform.OS === 'web' ? (
+                  // Web: HTML native date input
+                  <input
+                    type="date"
+                    value={dateISO}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v) {
+                        setDateISO(v);
+                        setTouchedDate(true);
+                      }
+                    }}
+                    style={{
+                      fontSize: 18,
+                      fontFamily: 'inherit',
+                      padding: 12,
+                      borderRadius: 10,
+                      border: `1px solid ${colors.line}`,
+                      backgroundColor: colors.surface,
+                      color: colors.ink,
+                      width: '100%',
+                      maxWidth: 280,
+                      textAlign: 'center',
+                    }}
+                  />
+                ) : (
+                  <DateTimePicker
+                    value={isoToDate(dateISO)}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={onChangeDate}
+                    themeVariant="light"
+                    accentColor={colors.accent}
+                    textColor={colors.ink}
+                  />
+                )}
+              </View>
+
+              <Pressable
+                style={styles.dateModalDone}
+                onPress={() => setShowPicker(false)}
+              >
+                <Text style={styles.dateModalDoneText}>Tamam</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <Text style={styles.label}>Kategori</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -677,13 +744,7 @@ export default function AddExpenseScreen() {
           )}
         </Pressable>
 
-        <View style={styles.keypadWrap}>
-          <NumericKeypad
-            onDigit={handleDigit}
-            onComma={handleComma}
-            onBackspace={handleBackspace}
-          />
-        </View>
+
       </ScrollView>
 
       <CategoryFormModal
@@ -727,8 +788,29 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
-  amountCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg, alignItems: 'center', marginBottom: spacing.md },
-  amountText: { fontFamily: fonts.heading, fontSize: 44, color: colors.ink, letterSpacing: 1 },
+  amountCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg,
+    borderWidth: 2, borderColor: colors.accent,
+    paddingVertical: spacing.lg, paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  amountSymbol: {
+    fontFamily: fonts.heading, fontSize: 44,
+    color: colors.accent, marginRight: spacing.xs,
+  },
+  amountInput: {
+    fontFamily: fonts.heading, fontSize: 44,
+    color: colors.ink,
+    padding: 0,
+    margin: 0,
+    minWidth: 120,
+    textAlign: 'left',
+  },
 
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceAlt },
@@ -741,6 +823,49 @@ const styles = StyleSheet.create({
   dateBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, paddingVertical: spacing.md, marginBottom: spacing.md },
   dateBtnText: { color: colors.ink, fontSize: 16, fontWeight: '600' },
   dateBtnHint: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  dateIcon: {
+    fontSize: 20, marginRight: spacing.sm,
+  },
+
+  // Tarih modal
+  dateModalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center', justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  dateModalSheet: {
+    width: '100%', maxWidth: 400,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.line,
+    padding: spacing.lg,
+  },
+  dateModalTitle: {
+    fontFamily: fonts.heading, fontSize: 20,
+    color: colors.ink, textAlign: 'center',
+  },
+  dateModalValue: {
+    fontFamily: fonts.heading, fontSize: 26,
+    color: colors.accent, textAlign: 'center',
+    marginTop: spacing.xs, marginBottom: spacing.md,
+  },
+  dateModalPickerWrap: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+    alignItems: 'center',
+  },
+  dateModalDone: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  dateModalDoneText: {
+    color: colors.accentInk, fontFamily: fonts.bodyBold,
+    fontSize: 16,
+  },
 
   chipRow: { paddingVertical: spacing.xs, paddingRight: spacing.lg, marginBottom: spacing.md },
 

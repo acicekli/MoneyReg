@@ -16,6 +16,7 @@ export default function UndoToast({
   onUndo,
   onExpire,
   duration = 3000,
+  bottomOffset = 16,
 }: Props) {
   useEffect(() => {
     if (!visible) return;
@@ -26,7 +27,7 @@ export default function UndoToast({
   if (!visible) return null;
 
   return (
-    <View style={styles.toast}>
+    <View style={[styles.toast, { bottom: bottomOffset }]}>
       <Text style={styles.text} numberOfLines={1}>{message}</Text>
       <Pressable onPress={onUndo} style={styles.btn}>
         <Text style={styles.btnText}>Geri Al</Text>
@@ -40,7 +41,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.lg,
     right: spacing.lg,
-    bottom: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -58,6 +58,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
     backgroundColor: colors.accent,
+    fontFamily: fonts.body,
   },
   btnText: { color: colors.accentInk, fontSize: 13, fontWeight: '700' },
 });
