@@ -13,7 +13,7 @@ import {
   type PersonDetailData,
 } from '../lib/closingReportQueries';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { GroupsStackParamList } from '../navigation/types';
 import TransactionList, {
   type TransactionListItem,
@@ -23,6 +23,8 @@ type RouteT = RouteProp<GroupsStackParamList, 'PersonDetail'>;
 
 
 export default function PersonDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const route = useRoute<RouteT>();
   const { spaceId, userId } = route.params;
 
@@ -67,7 +69,7 @@ export default function PersonDetailScreen() {
   const { space, person, totalTRY, categoryBreakdown } = data;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <BackgroundSilhouette type="person" />
       <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
@@ -119,10 +121,11 @@ export default function PersonDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 

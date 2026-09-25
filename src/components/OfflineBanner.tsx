@@ -4,9 +4,11 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 import { useNetworkStatus } from '../lib/networkContext';
-import { colors, fonts, spacing } from '../theme';
+import { fonts, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 export default function OfflineBanner() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { isOnline, isInitialized } = useNetworkStatus();
 
   if (!isInitialized || isOnline) return null;
@@ -19,7 +21,8 @@ export default function OfflineBanner() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',

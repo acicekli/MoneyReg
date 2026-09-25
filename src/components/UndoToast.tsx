@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -8,6 +8,7 @@ type Props = {
   onUndo: () => void;
   onExpire: () => void;
   duration?: number; // ms, default 2000
+  bottomOffset?: number; // px, default 16
 };
 
 export default function UndoToast({
@@ -18,6 +19,8 @@ export default function UndoToast({
   duration = 2000,
   bottomOffset = 16,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   useEffect(() => {
     if (!visible) return;
     const t = setTimeout(() => onExpire(), duration);
@@ -36,7 +39,8 @@ export default function UndoToast({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   toast: {
     position: 'absolute',
     left: spacing.lg,

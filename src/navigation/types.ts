@@ -15,6 +15,7 @@ export type GroupsStackParamList = {
   Groups: undefined;
   CreateSpace: undefined;
   GroupDetail: { spaceId: string };
+  AddExpense: { spaceId?: string; transactionId?: string } | undefined;
   AllTransactions: { spaceId?: string } | undefined;
   CalculateModal: { spaceId: string };
   CalculateScreen: { spaceId: string };

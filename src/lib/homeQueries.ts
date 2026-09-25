@@ -1,8 +1,9 @@
 // ============================================================
-// MoneyReg — Home ekranı için Supabase sorguları
+// MoneyReg — Home ekranı + AllTransactions için Supabase sorguları
 // ============================================================
 
 import { supabase } from './supabase';
+import { getUserSpaces } from './transactionQueries';
 import type { Category, Transaction } from '../types/models';
 
 // ---------- Profil ----------
@@ -15,7 +16,6 @@ export async function getProfileDisplayName(userId: string): Promise<string | nu
     .single();
 
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn('getProfileDisplayName error:', error.message);
     return null;
   }
@@ -35,19 +35,14 @@ export async function getPersonalSpaceId(userId: string): Promise<string | null>
     .maybeSingle();
 
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn('getPersonalSpaceId error:', error.message);
     return null;
   }
   return data?.id ?? null;
 }
 
-// ---------- Transactions ----------
+// ---------- Transactions (Home için) ----------
 
-/**
- * Belirli bir space için bu ayki tüm transaction'ları getirir.
- * @param monthStart ISO date (YYYY-MM-01) — ayın ilk günü
- */
 export async function getMonthlyTransactions(
   spaceId: string,
   monthStart: string
@@ -60,19 +55,15 @@ export async function getMonthlyTransactions(
     .order('expense_date', { ascending: false });
 
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn('getMonthlyTransactions error:', error.message);
     return [];
   }
   return (data ?? []) as Transaction[];
 }
 
-/**
- * Son N transaction (expense_date azalan).
- */
 export async function getRecentTransactions(
   spaceId: string,
-  limit = 7
+  limit = 15
 ): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from('transactions')
@@ -83,19 +74,39 @@ export async function getRecentTransactions(
     .limit(limit);
 
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn('getRecentTransactions error:', error.message);
     return [];
   }
   return (data ?? []) as Transaction[];
 }
 
+// ---------- AllTransactions için: filtresiz TÜM harcamalar ----------
+
+export async function getAllTransactions(
+  userId: string
+): Promise<Transaction[]> {
+  const allSpaces = await getUserSpaces(userId);
+  const spaceIds = allSpaces.map((s) => s.id);
+
+  if (spaceIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .in('space_id', spaceIds)
+    .order('expense_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.warn('getAllTransactions error:', error.message);
+    return [];
+  }
+
+  return (data ?? []) as Transaction[];
+}
+
 // ---------- Categories ----------
 
-/**
- * Varsayılan + kullanıcının kendi kategorilerini getirir.
- * Transaction'ların `category_id`'sini `name`/`icon` ile göstermek için.
- */
 export async function getCategories(userId: string): Promise<Category[]> {
   const { data, error } = await supabase
     .from('categories')
@@ -103,18 +114,14 @@ export async function getCategories(userId: string): Promise<Category[]> {
     .or(`is_default.eq.true,created_by.eq.${userId}`);
 
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn('getCategories error:', error.message);
     return [];
   }
   return (data ?? []) as Category[];
 }
 
-// ---------- Yardımcı ----------
+// ---------- Yardımcılar ----------
 
-/**
- * Bu ayın ilk gününü YYYY-MM-01 formatında döner.
- */
 export function getCurrentMonthStart(): string {
   const now = new Date();
   const y = now.getFullYear();
@@ -122,10 +129,6 @@ export function getCurrentMonthStart(): string {
   return `${y}-${m}-01`;
 }
 
-/**
- * Transaction listesini, kategori listesini kullanarak map'ler.
- * category_id → Category
- */
 export function mapCategoriesById(categories: Category[]): Map<string, Category> {
   const map = new Map<string, Category>();
   for (const c of categories) map.set(c.id, c);
@@ -133,96 +136,8 @@ export function mapCategoriesById(categories: Category[]): Map<string, Category>
 }
 
 // ============================================================
-// "Tüm Harcamalar" modalı için filtreli sorgular
+// AllTransactions ekranı için tip tanımları (client-side filtre)
 // ============================================================
-
-import { getUserSpaces } from './transactionQueries';
 
 export type TransactionScope = 'personal' | 'groups' | 'all';
 export type TransactionPeriod = '1m' | '3m' | '1y' | 'all';
-
-/**
- * Belirli bir scope + period için harcamaları getirir.
- * @param userId
- * @param scope 'personal' | 'groups' | 'all'
- * @param period '1m' | '3m' | '1y' | 'all'
- * @param spaceIdBelirli bir space'e kısıtlamak için (GroupDetail modalından)
- */
-export async function getFilteredTransactions(
-  userId: string,
-  scope: TransactionScope,
-  period: TransactionPeriod,
-  spaceId?: string,
-  createdByUserIds?: string[]
-): Promise<Transaction[]> {
-  // 1) Hangi space'ler?
-  let spaceIds: string[] = [];
-
-  if (spaceId) {
-    // Belirli bir space (grup detay modalı)
-    spaceIds = [spaceId];
-  } else {
-    // Kapsam filtresi
-    const allSpaces = await getUserSpaces(userId);
-
-    if (scope === 'personal') {
-      spaceIds = allSpaces.filter((s) => s.type === 'personal').map((s) => s.id);
-    } else if (scope === 'groups') {
-      spaceIds = allSpaces.filter((s) => s.type === 'shared').map((s) => s.id);
-    } else {
-      spaceIds = allSpaces.map((s) => s.id);
-    }
-  }
-
-  if (spaceIds.length === 0) return [];
-
-  // 2) Tarih filtresi
-  let cutoffDate: string | null = null;
-  const now = new Date();
-  if (period === '1m') {
-    const d = new Date(now);
-    d.setMonth(d.getMonth() - 1);
-    cutoffDate = d.toISOString().slice(0, 10);
-  } else if (period === '3m') {
-    const d = new Date(now);
-    d.setMonth(d.getMonth() - 3);
-    cutoffDate = d.toISOString().slice(0, 10);
-  } else if (period === '1y') {
-    const d = new Date(now);
-    d.setFullYear(d.getFullYear() - 1);
-    cutoffDate = d.toISOString().slice(0, 10);
-  }
-  // 'all' → cutoffDate = null
-
-  // 3) Sorgu
-  let query = supabase
-    .from('transactions')
-    .select('*')
-    .in('space_id', spaceIds)
-    .order('expense_date', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (cutoffDate) {
-    query = query.gte('expense_date', cutoffDate);
-  }
-
-  // Kişi filtresi (çoklu)
-  if (createdByUserIds && createdByUserIds.length > 0) {
-    query = query.in('created_by', createdByUserIds);
-  }
-
-  // Scope 'groups' veya belirli bir shared space'te → sadece kendi ödediklerim
-  // Ama personal space'te de hepsi benim
-  // Şimdilik hepsini göster (kullanıcı kendi space'lerindeki her şeyi görebilir)
-  // Not: shared space'lerde başkalarının harcamaları da görünür — bu istenirse
-  // ek filtre eklenebilir.
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.warn('getFilteredTransactions error:', error.message);
-    return [];
-  }
-
-  return (data ?? []) as Transaction[];
-}

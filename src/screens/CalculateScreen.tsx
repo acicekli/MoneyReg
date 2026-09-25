@@ -9,13 +9,15 @@ import {
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { getSpaceDetail, type BalanceEntry } from '../lib/groupDetailQueries';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { GroupsStackParamList } from '../navigation/types';
 
 type RouteT = RouteProp<GroupsStackParamList, 'CalculateScreen'>;
 
 
 export default function CalculateScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const route = useRoute<RouteT>();
   const { spaceId } = route.params;
   const [loading, setLoading] = useState(true);
@@ -84,10 +86,11 @@ export default function CalculateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   scroll: { padding: spacing.lg },
   title: {
@@ -115,7 +118,7 @@ const styles = StyleSheet.create({
   name: { color: colors.ink, fontSize: 15, fontWeight: '600' },
   right: { alignItems: 'flex-end' },
   netValue: { fontSize: 16, fontWeight: '700' },
-  netPositive: { color: colors.positive },
+  netPositive: { color: colors.income },
   netNegative: { color: colors.expense },
   subLine: { color: colors.inkSoft, fontSize: 11, marginTop: 2 },
 });

@@ -22,7 +22,7 @@ import {
   setupNotificationResponseHandler,
 } from './src/lib/notifications';
 import OfflineBanner from './src/components/OfflineBanner';
-import { colors } from './src/theme';
+import { ThemeProvider, useTheme } from './src/theme';
 
 // ---------- Bildirim bootstrap ----------
 
@@ -70,9 +70,29 @@ function SyncOnOnline() {
   return null;
 }
 
-// ---------- App ----------
+// ---------- Font yükleniyor ekranı (tema duyarlı) ----------
 
-export default function App() {
+function LoadingScreen() {
+  const { colors, isDark } = useTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.bg,
+      }}
+    >
+      <ActivityIndicator size="large" color={colors.accent} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+    </View>
+  );
+}
+
+// ---------- Uygulama gövdesi (ThemeProvider içinde) ----------
+
+function AppBody() {
+  const { isDark } = useTheme();
   const [fontsLoaded] = useFonts({
     Fraunces_400Regular,
     Fraunces_700Bold,
@@ -82,18 +102,7 @@ export default function App() {
   });
 
   if (!fontsLoaded) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -104,9 +113,19 @@ export default function App() {
           <SyncOnOnline />
           <OfflineBanner />
           <RootNavigator />
-          <StatusBar style="auto" />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
         </AuthProvider>
       </NetworkProvider>
     </SafeAreaProvider>
+  );
+}
+
+// ---------- Kök ----------
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppBody />
+    </ThemeProvider>
   );
 }

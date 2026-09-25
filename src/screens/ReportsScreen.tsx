@@ -17,7 +17,7 @@ import {
   type ReportScope,
 } from '../lib/reportsQueries';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { ReportsStackParamList } from '../navigation/types';
 
 type RouteT = RouteProp<ReportsStackParamList, 'Reports'>;
@@ -35,6 +35,7 @@ type SegmentProps<T extends string> = {
 };
 
 function Segmented<T extends string>({ options, value, onChange }: SegmentProps<T>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.segmentRow}>
       {options.map((opt) => {
@@ -56,6 +57,8 @@ function Segmented<T extends string>({ options, value, onChange }: SegmentProps<
 }
 
 export default function ReportsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const route = useRoute<RouteT>();
 
@@ -163,8 +166,9 @@ export default function ReportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
   label: {
@@ -176,7 +180,7 @@ const styles = StyleSheet.create({
 
   segmentRow: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderRadius: radius.md,
     padding: 4,
     borderWidth: 1,
@@ -189,6 +193,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentBtnActive: { backgroundColor: colors.accent },
+  segmentText: { color: colors.ink, fontSize: 14, fontWeight: '600', fontFamily: fonts.body },
   segmentTextActive: { color: colors.accentInk },
 
   rangeText: {
@@ -260,7 +265,7 @@ const styles = StyleSheet.create({
 
   barTrack: {
     height: 8,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderRadius: 4,
     overflow: 'hidden',
   },

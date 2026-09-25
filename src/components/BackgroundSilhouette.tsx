@@ -5,7 +5,7 @@
 
 import { StyleSheet, View } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { colors } from '../theme';
+import { useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type SilhouetteType =
   | 'wallet'         // HomeScreen
@@ -30,6 +30,8 @@ export default function BackgroundSilhouette({
   opacity = 0.08,
   rotation = 15,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View
       pointerEvents="none"
@@ -102,7 +104,8 @@ export default function BackgroundSilhouette({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     position: 'absolute',
     right: -80,   // kısmen kırpılmış (ekran dışına taşsın)

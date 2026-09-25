@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Swipeable, RectButton } from 'react-native-gesture-handler';
 import { transactionAmountInTRY, type Transaction } from '../types/models';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors } from '../theme';
 
 // ============================================================
 // Ortak transaction listesi
@@ -48,6 +48,7 @@ export default function TransactionList({
   onEdit,
   onDelete,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
   // Aynı anda tek Swipeable açık olsun
   const openRowRef = useRef<Swipeable | null>(null);
 
@@ -106,6 +107,7 @@ function TransactionRow({
   onDelete,
   openRowRef,
 }: RowProps) {
+  const styles = useThemedStyles(makeStyles);
   const tryValue = transactionAmountInTRY(t);
   const isForeign = t.currency !== 'TRY';
   const headerIcon = showCategory ? t.category_icon ?? '📦' : null;
@@ -222,7 +224,8 @@ function TransactionRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   txRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

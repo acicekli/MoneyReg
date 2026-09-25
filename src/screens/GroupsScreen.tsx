@@ -19,12 +19,14 @@ import { getSpaceDetail } from '../lib/groupDetailQueries';
 import SpaceCard from '../components/SpaceCard';
 import JoinByCodeModal from '../components/JoinByCodeModal';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { GroupsStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<GroupsStackParamList, 'Groups'>;
 
 export default function GroupsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   const { guard } = useOnlineGuard();
@@ -169,11 +171,12 @@ export default function GroupsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   scroll: { padding: spacing.lg },
 
@@ -187,6 +190,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md, alignItems: 'center',
   },
   btnPrimary: { backgroundColor: colors.accent },
+  btnPrimaryText: { color: colors.accentInk, fontSize: 14, fontWeight: '700', fontFamily: fonts.body },
   btnGhost: {
     backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.line,

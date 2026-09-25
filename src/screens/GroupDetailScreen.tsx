@@ -30,9 +30,9 @@ import {
 } from '../lib/groupDetailQueries';
 import { supabase } from '../lib/supabase';
 import { deleteTransaction } from '../lib/transactionQueries';
-import { type Category } from '../types/models';
+import { type Category, type Transaction } from '../types/models';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { GroupsStackParamList } from '../navigation/types';
 import TransactionList, {
   type TransactionListItem,
@@ -47,6 +47,8 @@ type RouteT = RouteProp<GroupsStackParamList, 'GroupDetail'>;
 
 
 export default function GroupDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   const { guard } = useOnlineGuard();
@@ -273,10 +275,10 @@ export default function GroupDetailScreen() {
           editable={true}
           currentUserId={user?.id}
           onEdit={(t) =>
-            navigation.navigate('AddExpense' as never, {
+            navigation.navigate('AddExpense', {
               spaceId: t.space_id,
               transactionId: t.id,
-            } as never)
+            })
           }
           onDelete={(t) => {
             if (!detail) return;
@@ -292,7 +294,7 @@ export default function GroupDetailScreen() {
         <Pressable
           style={styles.allTxBtn}
           onPress={() =>
-            navigation.navigate('AllTransactions' as never, { spaceId } as never)
+            navigation.navigate('AllTransactions', { spaceId })
           }
         >
           <Text style={styles.allTxBtnText}>Tüm Harcamalar ›</Text>
@@ -369,14 +371,14 @@ export default function GroupDetailScreen() {
         spaceName={detail?.space.name}
         onClose={() => setSelectedTx(null)}
         onEdit={
-          selectedTx?.created_by === user?.id
+          selectedTx && selectedTx.created_by === user?.id
             ? () => {
                 const tx = selectedTx;
                 setSelectedTx(null);
-                navigation.navigate('AddExpense' as never, {
+                navigation.navigate('AddExpense', {
                   spaceId: tx.space_id,
                   transactionId: tx.id,
-                } as never);
+                });
               }
             : undefined
         }
@@ -415,14 +417,14 @@ export default function GroupDetailScreen() {
         spaceName={detail?.space.name}
         onClose={() => setSelectedTx(null)}
         onEdit={
-          selectedTx?.created_by === user?.id
+          selectedTx && selectedTx.created_by === user?.id
             ? () => {
                 const tx = selectedTx;
                 setSelectedTx(null);
-                navigation.navigate('AddExpense' as never, {
+                navigation.navigate('AddExpense', {
                   spaceId: tx.space_id,
                   transactionId: tx.id,
-                } as never);
+                });
               }
             : undefined
         }
@@ -458,11 +460,12 @@ export default function GroupDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
@@ -479,10 +482,11 @@ const styles = StyleSheet.create({
   avatar: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: colors.accent,
-    borderWidth: 2, borderColor: colors.background,
+    borderWidth: 2, borderColor: colors.bg,
     alignItems: 'center', justifyContent: 'center',
   },
   avatarExtra: { backgroundColor: colors.inkSoft },
+  avatarText: { color: '#FFFFFF', fontFamily: fonts.body, fontSize: 12, fontWeight: '600' },
   membersLink: {
     color: colors.accent, fontSize: 16,
     fontFamily: fonts.body,

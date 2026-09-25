@@ -21,7 +21,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { type Category, type Transaction } from '../types/models';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { GroupsStackParamList } from '../navigation/types';
 import TransactionList, {
   type TransactionListItem,
@@ -32,6 +32,8 @@ type RouteT = RouteProp<GroupsStackParamList, 'ClosingReport'>;
 
 
 export default function ClosingReportScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteT>();
   const { spaceId } = route.params;
@@ -188,11 +190,12 @@ export default function ClosingReportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   scroll: { padding: spacing.lg, paddingBottom: 100 },
 
@@ -234,7 +237,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line,
     padding: spacing.md, marginBottom: spacing.sm,
   },
-  personCardPressed: { backgroundColor: colors.surfaceAlt },
+  personCardPressed: { backgroundColor: colors.surface2 },
   personHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: spacing.xs,
@@ -245,6 +248,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
+  avatarText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', fontFamily: fonts.body },
+  personName: { color: colors.ink, fontSize: 15, fontWeight: '600', fontFamily: fonts.body, flex: 1 },
+  personTotal: { color: colors.ink, fontFamily: fonts.heading, fontSize: 16 },
   personSummary: { color: colors.inkSoft, fontSize: 16, marginTop: 2 },
 
   emptyBox: {
@@ -258,7 +264,7 @@ const styles = StyleSheet.create({
 
   calcBtn: {
     position: 'absolute', right: spacing.lg, bottom: spacing.lg,
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.pill,
+    backgroundColor: colors.surface2, borderRadius: radius.pill,
     borderWidth: 1, borderColor: colors.line,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
   },

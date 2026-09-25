@@ -14,18 +14,15 @@ import { useAuth } from '../lib/auth-context';
 import { deleteTransaction } from '../lib/transactionQueries';
 import { enqueue } from '../lib/offlineQueue';
 import { useNetworkStatus } from '../lib/networkContext';
-import { getCached, CacheKeys } from '../lib/localCache';
-import {
-  getFilteredTransactions,
-  type TransactionPeriod,
-  type TransactionScope,
-} from '../lib/homeQueries';
+import { getCached, setCached, CacheKeys } from '../lib/localCache';
+import { getAllTransactions, type TransactionPeriod, type TransactionScope } from '../lib/homeQueries';
+import { getUserSpaces } from '../lib/transactionQueries';
 import { getSpaceMembers, type SpaceMemberInfo } from '../lib/groupQueries';
-import { transactionAmountInTRY, type Category, type Transaction } from '../types/models';
+import { transactionAmountInTRY, type Category, type Space, type Transaction } from '../types/models';
 import TransactionList, { type TransactionListItem } from '../components/TransactionList';
 import TransactionDetailModal from '../components/TransactionDetailModal';
 import UndoToast from '../components/UndoToast';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { HomeStackParamList } from '../navigation/types';
 
 type RouteT = RouteProp<HomeStackParamList, 'AllTransactions'>;
@@ -51,11 +48,23 @@ function findLabel<T extends string>(
   return options.find((o) => o.value === value)?.label ?? '';
 }
 
+function getCutoffDate(period: TransactionPeriod): string | null {
+  if (period === 'all') return null;
+  const now = new Date();
+  const d = new Date(now);
+  if (period === '1m') d.setMonth(d.getMonth() - 1);
+  else if (period === '3m') d.setMonth(d.getMonth() - 3);
+  else if (period === '1y') d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function AllTransactionsModal() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
-  const { isOnline } = useNetworkStatus();
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteT>();
+  const { isOnline } = useNetworkStatus();
 
   const initialSpaceId = route.params?.spaceId;
   const isGroupMode = !!initialSpaceId;
@@ -63,17 +72,16 @@ export default function AllTransactionsModal() {
   const [period, setPeriod] = useState<TransactionPeriod>('all');
   const [scope, setScope] = useState<TransactionScope>('all');
 
-  // Kişi filtresi — çoklu seçim (boş = hepsi)
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [members, setMembers] = useState<SpaceMemberInfo[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [allRaw, setAllRaw] = useState<Transaction[]>([]);
+  const [spaces, setSpaces] = useState<Space[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedTx, setSelectedTx] = useState<TransactionListItem | null>(null);
   const [deletedTx, setDeletedTx] = useState<Transaction | null>(null);
 
-  // Dropdown state
   const [periodOpen, setPeriodOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -86,7 +94,7 @@ export default function AllTransactionsModal() {
     })();
   }, []);
 
-  // Grup üyelerini al (sadece grup modunda)
+  // Grup üyeleri (grup modunda)
   useEffect(() => {
     if (!isGroupMode || !initialSpaceId) return;
     (async () => {
@@ -95,30 +103,117 @@ export default function AllTransactionsModal() {
     })();
   }, [isGroupMode, initialSpaceId]);
 
+  // ============================================================
+  // VERİ YÜKLEME (tek cache key: all-transactions:raw)
+  // ============================================================
   const load = useCallback(async () => {
     if (!user) return;
-    // Offline'da Supabase'e istek atma (liste bozulmasın)
-    if (!isOnline) { setLoading(false); return; }
 
-    setLoading(true);
+    // 1) CACHE'ten oku
+    const [cachedRaw, cachedSpaces, cachedCats] = await Promise.all([
+      getCached<Transaction[]>(CacheKeys.allTransactionsRaw),
+      getCached<Space[]>('all-transactions:spaces'),
+      getCached<Category[]>(CacheKeys.categories),
+    ]);
+
+    if (cachedRaw) {
+      setAllRaw(cachedRaw);
+      setLoading(false);
+    }
+    if (cachedSpaces) setSpaces(cachedSpaces);
+    if (cachedCats) setCategories(cachedCats);
+
+    // 2) Offline ise cache ile kal
+    if (!isOnline) {
+      setLoading(false);
+      return;
+    }
+
+    // 3) Online → çek + cache
+    if (!cachedRaw) setLoading(true);
     try {
-      const data = await getFilteredTransactions(
-        user.id,
-        scope,
-        period,
-        initialSpaceId,
-        memberIds.length > 0 ? memberIds : undefined
-      );
-      setTransactions(data);
+      const [rawData, spaceData, catData] = await Promise.all([
+        getAllTransactions(user.id),
+        getUserSpaces(user.id),
+        (async () => {
+          const { data } = await (await import('../lib/supabase')).supabase
+            .from('categories')
+            .select('*');
+          return (data ?? []) as Category[];
+        })(),
+      ]);
+      setAllRaw(rawData);
+      setSpaces(spaceData);
+      setCategories(catData);
+
+      await Promise.all([
+        setCached(CacheKeys.allTransactionsRaw, rawData),
+        setCached('all-transactions:spaces', spaceData),
+        setCached(CacheKeys.categories, catData),
+      ]);
     } finally {
       setLoading(false);
     }
-  }, [user, isOnline, scope, period, initialSpaceId, memberIds]);
+  }, [user, isOnline]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  // ============================================================
+  // LOCAL FILTER (Supabase'e gitmez — JS'te uygulanır)
+  // ============================================================
+  const spaceById = useMemo(() => {
+    const m = new Map<string, Space>();
+    for (const s of spaces) m.set(s.id, s);
+    return m;
+  }, [spaces]);
+
+  const filtered = useMemo(() => {
+    let result = allRaw;
+
+    // 1) Grup modu → sadece o space
+    if (initialSpaceId) {
+      result = result.filter((t) => t.space_id === initialSpaceId);
+    } else {
+      // 2) Scope filtresi (genel mod)
+      if (scope === 'personal') {
+        result = result.filter((t) => {
+          const s = spaceById.get(t.space_id);
+          return s?.type === 'personal';
+        });
+      } else if (scope === 'groups') {
+        result = result.filter((t) => {
+          const s = spaceById.get(t.space_id);
+          return s?.type === 'shared';
+        });
+      }
+      // scope === 'all' → hepsi
+    }
+
+    // 3) Period filtresi
+    const cutoff = getCutoffDate(period);
+    if (cutoff) {
+      result = result.filter((t) => t.expense_date >= cutoff);
+    }
+
+    // 4) Member filtresi (grup modu)
+    if (isGroupMode && memberIds.length > 0) {
+      result = result.filter((t) => memberIds.includes(t.created_by));
+    }
+
+    return result;
+  }, [allRaw, scope, period, memberIds, initialSpaceId, isGroupMode, spaceById]);
+
+  // Görüntülenecek harcamalar (silinen hariç)
+  const displayList = useMemo(() => {
+    if (!deletedTx) return filtered;
+    return filtered.filter((t) => t.id !== deletedTx.id);
+  }, [filtered, deletedTx]);
+
+  // ============================================================
+  // LİSTE HAZIRLAMA
+  // ============================================================
   const categoryMap = useMemo(() => {
     const m = new Map<string, Category>();
     for (const c of categories) m.set(c.id, c);
@@ -126,7 +221,7 @@ export default function AllTransactionsModal() {
   }, [categories]);
 
   const listItems: TransactionListItem[] = useMemo(() => {
-    return transactions.map((t) => {
+    return displayList.map((t) => {
       const cat = t.category_id ? categoryMap.get(t.category_id) : undefined;
       const payer = members.find((m) => m.user_id === t.created_by);
       return {
@@ -136,15 +231,14 @@ export default function AllTransactionsModal() {
         category_icon: cat?.icon ?? (t.category_id ? null : '📦'),
       };
     });
-  }, [transactions, categoryMap, members]);
+  }, [displayList, categoryMap, members]);
 
   const totalTRY = useMemo(() => {
     let sum = 0;
-    for (const t of transactions) sum += transactionAmountInTRY(t);
+    for (const t of displayList) sum += transactionAmountInTRY(t);
     return sum;
-  }, [transactions]);
+  }, [displayList]);
 
-  // Kişi dropdown etiketi
   const memberLabel =
     memberIds.length === 0
       ? 'Tümü'
@@ -207,7 +301,7 @@ export default function AllTransactionsModal() {
 
       {/* Toplam */}
       <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>{transactions.length} harcama</Text>
+        <Text style={styles.totalLabel}>{displayList.length} harcama</Text>
         <Text style={styles.totalValue}>
           ₺{totalTRY.toLocaleString('tr-TR', {
             minimumFractionDigits: 2,
@@ -239,9 +333,6 @@ export default function AllTransactionsModal() {
               });
             }}
             onDelete={(t) => {
-              // Optimistic: listeden çıkar
-              setTransactions((prev) => prev.filter((x) => x.id !== t.id));
-              // UndoToast göster
               setDeletedTx(t as any);
             }}
           />
@@ -328,7 +419,7 @@ export default function AllTransactionsModal() {
         </Pressable>
       </Modal>
 
-      {/* Kişiler dropdown modal (çoklu seçim) */}
+      {/* Kişiler dropdown modal */}
       <Modal
         visible={membersOpen}
         transparent
@@ -368,7 +459,6 @@ export default function AllTransactionsModal() {
               })}
             </ScrollView>
 
-            {/* Alt butonlar */}
             <View style={styles.dropdownFooter}>
               <Pressable
                 style={styles.dropdownFooterBtn}
@@ -400,12 +490,13 @@ export default function AllTransactionsModal() {
         </Pressable>
       </Modal>
 
+      {/* Detay modal */}
       <TransactionDetailModal
         visible={!!selectedTx}
         transaction={selectedTx}
         onClose={() => setSelectedTx(null)}
         onEdit={
-          selectedTx?.created_by === user?.id
+          selectedTx && selectedTx.created_by === user?.id
             ? () => {
                 const tx = selectedTx;
                 setSelectedTx(null);
@@ -418,16 +509,13 @@ export default function AllTransactionsModal() {
         }
       />
 
+      {/* Undo toast */}
       <UndoToast
         visible={!!deletedTx}
         message="Harcama silindi"
         bottomOffset={16}
         onUndo={() => {
-          if (deletedTx) {
-            // Listeye geri ekle
-            setTransactions((prev) => [deletedTx as any, ...prev]);
-            setDeletedTx(null);
-          }
+          setDeletedTx(null);
         }}
         onExpire={async () => {
           if (deletedTx && user) {
@@ -438,9 +526,11 @@ export default function AllTransactionsModal() {
                 transactionId: deletedTx.id,
               });
             }
+            // Cache'ten de sil
+            const updated = allRaw.filter((t) => t.id !== deletedTx.id);
+            setAllRaw(updated);
+            await setCached(CacheKeys.allTransactionsRaw, updated);
             setDeletedTx(null);
-            // Yeniden yükle (doğru liste için)
-            load();
           }
         }}
       />
@@ -448,8 +538,9 @@ export default function AllTransactionsModal() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
 
   dropdownRow: {
     flexDirection: 'row',
@@ -544,7 +635,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     alignItems: 'center',
   },
   dropdownFooterPrimary: {

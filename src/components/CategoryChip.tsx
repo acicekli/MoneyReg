@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, radius, spacing } from '../theme';
+import { radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import type { Category } from '../types/models';
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
 };
 
 export default function CategoryChip({ category, selected, onPress }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -22,7 +24,8 @@ export default function CategoryChip({ category, selected, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -32,7 +35,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     marginRight: spacing.sm,
   },
   chipSelected: {

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatCurrency, formatExpenseAmount, formatAmount as fmtAmount, formatPercent } from '../lib/format';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors } from '../theme';
 import type { SpaceWithMeta } from '../lib/groupQueries';
 
 type Props = {
@@ -12,6 +12,7 @@ const MAX_AVATARS = 4;
 
 
 export default function SpaceCard({ space, onPress }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const isClosed = space.status === 'closed';
 
   const initials = space.memberInitials ?? [];
@@ -61,7 +62,8 @@ export default function SpaceCard({ space, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -70,7 +72,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
-  cardPressed: { backgroundColor: colors.surfaceAlt },
+  cardPressed: { backgroundColor: colors.surface2 },
   cardClosed: { opacity: 0.65 },
 
   topRow: {
@@ -112,6 +114,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarExtra: { backgroundColor: colors.inkSoft },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: fonts.body,
+  },
   noMembers: { color: colors.inkSoft, fontSize: 16, fontStyle: 'italic' },
 
   bottomRow: {

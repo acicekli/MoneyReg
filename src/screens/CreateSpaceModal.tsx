@@ -12,9 +12,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../lib/auth-context';
 import { createSharedSpace } from '../lib/groupQueries';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 export default function CreateSpaceModal() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const navigation = useNavigation();
   const [name, setName] = useState('');
@@ -87,10 +89,11 @@ export default function CreateSpaceModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
     justifyContent: 'center',
     padding: spacing.lg,
   },

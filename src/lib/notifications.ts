@@ -235,10 +235,10 @@ function navigateToReports(period: NotificationPeriod) {
   }
 
   try {
-    navigationRef.navigate('ReportsTab' as never, {
+    navigationRef.navigate('ReportsTab', {
       screen: 'Reports',
       params: { initialPeriod: period },
-    } as never);
+    });
   } catch {
     // sessiz
   }

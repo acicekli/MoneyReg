@@ -1,19 +1,11 @@
 // ============================================================
 // MoneyReg — Basit yerel cache (AsyncStorage)
-// Online çekimlerde yazılır, offline'da okunur.
-// Stale-while-revalidate mantığı ekranlarda uygulanır.
 // ============================================================
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PREFIX = 'cache:';
 
-// ---------- Ana API ----------
-
-/**
- * Cache'ten veri oku.
- * Bulunamazsa null döner.
- */
 export async function getCached<T = any>(key: string): Promise<T | null> {
   try {
     const raw = await AsyncStorage.getItem(PREFIX + key);
@@ -24,9 +16,6 @@ export async function getCached<T = any>(key: string): Promise<T | null> {
   }
 }
 
-/**
- * Cache'e veri yaz.
- */
 export async function setCached(key: string, data: any): Promise<void> {
   try {
     await AsyncStorage.setItem(PREFIX + key, JSON.stringify(data));
@@ -35,9 +24,6 @@ export async function setCached(key: string, data: any): Promise<void> {
   }
 }
 
-/**
- * Tek bir cache key'ini sil.
- */
 export async function clearCache(key: string): Promise<void> {
   try {
     await AsyncStorage.removeItem(PREFIX + key);
@@ -46,10 +32,6 @@ export async function clearCache(key: string): Promise<void> {
   }
 }
 
-/**
- * Prefix ile başlayan tüm cache'leri sil.
- * Örn: clearCacheByPrefix('cache:group:abc') → o grubun tüm cache'leri
- */
 export async function clearCacheByPrefix(prefix: string): Promise<void> {
   try {
     const keys = await AsyncStorage.getAllKeys();
@@ -62,7 +44,7 @@ export async function clearCacheByPrefix(prefix: string): Promise<void> {
   }
 }
 
-// ---------- Key şeması (sabitler) ----------
+// ---------- Cache key şeması ----------
 
 export const CacheKeys = {
   homeTransactions: 'home:transactions',
@@ -73,4 +55,6 @@ export const CacheKeys = {
   groupTransactions: (spaceId: string) => `group:${spaceId}:transactions`,
   categories: 'categories:user',
   reports: (scope: string, period: string) => `reports:${scope}:${period}`,
+  allTransactionsRaw: 'all-transactions:raw',
+  allTransactionsSpaces: 'all-transactions:spaces',
 };

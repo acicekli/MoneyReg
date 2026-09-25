@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -23,6 +23,8 @@ export default function InviteModal({
   inviteCode,
   onClose,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const handleShare = useCallback(async () => {
     const message = `${spaceName} alanına katılmak için bu kodu kullan: ${inviteCode}`;
 
@@ -76,7 +78,8 @@ export default function InviteModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -107,7 +110,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
   },
   codeBox: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.accent,

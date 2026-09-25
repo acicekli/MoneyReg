@@ -1,19 +1,20 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from '../screens/SettingsScreen';
 import CategoriesScreen from '../screens/CategoriesScreen';
-import { colors, fonts } from '../theme';
+import { fonts, useTheme } from '../theme';
 import type { SettingsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
 export default function SettingsStack() {
+  const { colors } = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.ink,
         headerTitleStyle: { fontFamily: fonts.heading },
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: colors.bg },
       }}
     >
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ayarlar' }} />

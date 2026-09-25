@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { joinSpaceByCode } from '../lib/groupQueries';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -18,6 +18,8 @@ type Props = {
 };
 
 export default function JoinByCodeModal({ visible, onClose, onJoined }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -109,7 +111,8 @@ export default function JoinByCodeModal({ visible, onClose, onJoined }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -168,7 +171,7 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnGhost: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.line,
   },

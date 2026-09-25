@@ -13,7 +13,7 @@ import {
 import { transactionAmountInTRY, type Transaction } from '../types/models';
 import { getSignedReceiptUrl } from '../lib/receiptsStorage';
 import { useNetworkStatus } from '../lib/networkContext';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 // ============================================================
 // Harcama Detay Modalı
@@ -47,6 +47,8 @@ export default function TransactionDetailModal({
   onClose,
   onEdit,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { isOnline } = useNetworkStatus();
   const [viewingReceipt, setViewingReceipt] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
@@ -255,7 +257,8 @@ export default function TransactionDetailModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
   },
 
   receiptBtn: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
@@ -341,7 +344,7 @@ const styles = StyleSheet.create({
   receiptBtnText: { color: colors.accent, fontSize: 14, fontWeight: '700' },
   receiptBtnDisabled: {
     opacity: 0.6,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     fontFamily: fonts.body,
   },
   receiptBtnDisabledText: {
@@ -360,18 +363,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnGhost: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.line,
   },
   btnPrimary: { backgroundColor: colors.accent },
+  btnGhostText: { color: colors.ink, fontSize: 14, fontWeight: '700', fontFamily: fonts.body },
+  btnPrimaryText: { color: colors.accentInk, fontSize: 14, fontWeight: '700', fontFamily: fonts.body },
 
   // Fiş görüntüleyici
   receiptViewer: {
     width: '100%',
     height: 400,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

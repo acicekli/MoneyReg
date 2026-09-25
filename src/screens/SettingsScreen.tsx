@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -19,14 +19,21 @@ import {
 import { rescheduleAllNotifications } from '../lib/notifications';
 import { getMonthStartDaySetting } from '../lib/reportsQueries';
 import MonthStartDayModal from '../components/MonthStartDayModal';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useTheme, type ThemeMode } from '../theme';
 import type { SettingsStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<SettingsStackParamList, 'Settings'>;
 
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'light', label: 'Açık' },
+  { value: 'dark', label: 'Koyu' },
+  { value: 'system', label: 'Sistem' },
+];
+
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const navigation = useNavigation<Nav>();
+  const { colors, mode, setMode } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<NotificationSettings>({
@@ -35,11 +42,9 @@ export default function SettingsScreen() {
     yearlyEnabled: true,
   });
 
-  // Ay başı günü
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [dayModalOpen, setDayModalOpen] = useState(false);
 
-  // Yükle
   useEffect(() => {
     (async () => {
       if (!user) return;
@@ -53,7 +58,6 @@ export default function SettingsScreen() {
     })();
   }, [user]);
 
-  // Bildirim toggle
   const updateSetting = useCallback(
     async (key: keyof NotificationSettings, value: boolean) => {
       const next = { ...settings, [key]: value };
@@ -62,6 +66,115 @@ export default function SettingsScreen() {
       if (user) await rescheduleAllNotifications(user.id);
     },
     [settings, user]
+  );
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        center: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.bg,
+        },
+        scroll: {
+          padding: spacing.lg,
+          paddingBottom: spacing.xxl,
+          backgroundColor: colors.bg,
+          flexGrow: 1,
+        },
+
+        section: { marginBottom: spacing.lg },
+        sectionTitle: {
+          fontFamily: fonts.heading,
+          fontSize: 16,
+          color: colors.ink,
+          marginBottom: spacing.sm,
+        },
+
+        card: {
+          backgroundColor: colors.surface,
+          borderRadius: radius.md,
+          borderWidth: 1,
+          borderColor: colors.line,
+          padding: spacing.md,
+        },
+        cardLabel: { color: colors.inkSoft, fontSize: 12 },
+        cardValue: { color: colors.ink, fontSize: 15, marginTop: 2 },
+
+        rowCard: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backgroundColor: colors.surface,
+          borderRadius: radius.md,
+          borderWidth: 1,
+          borderColor: colors.line,
+          padding: spacing.md,
+          fontFamily: fonts.body,
+        },
+        rowCardPressed: { backgroundColor: colors.surface2 },
+
+        row: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: spacing.sm,
+        },
+        rowText: { flex: 1, marginRight: spacing.md },
+        rowTitle: { color: colors.ink, fontSize: 15, fontWeight: '600' },
+        rowSub: { color: colors.inkSoft, fontSize: 12, marginTop: 2 },
+
+        rowValue: {
+          fontFamily: fonts.heading,
+          fontSize: 22,
+          color: colors.accent,
+          marginLeft: spacing.md,
+        },
+
+        divider: {
+          height: 1,
+          backgroundColor: colors.line,
+          marginVertical: spacing.xs,
+        },
+
+        // Tema seçici segment
+        segmentRow: {
+          flexDirection: 'row',
+          backgroundColor: colors.surface2,
+          borderRadius: radius.md,
+          padding: 4,
+          gap: 4,
+        },
+        segmentBtn: {
+          flex: 1,
+          paddingVertical: spacing.sm,
+          borderRadius: radius.sm,
+          alignItems: 'center',
+        },
+        segmentBtnActive: { backgroundColor: colors.accent },
+        segmentText: {
+          color: colors.ink,
+          fontSize: 13,
+          fontWeight: '600',
+          fontFamily: fonts.body,
+        },
+        segmentTextActive: { color: colors.accentInk },
+
+        logoutBtn: {
+          backgroundColor: colors.expense,
+          borderRadius: radius.md,
+          paddingVertical: spacing.md,
+          alignItems: 'center',
+          marginTop: spacing.lg,
+        },
+        logoutBtnText: {
+          color: colors.accentInk,
+          fontSize: 16,
+          fontFamily: fonts.body,
+        },
+      }),
+    [colors]
   );
 
   if (loading) {
@@ -81,6 +194,38 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>E-posta</Text>
             <Text style={styles.cardValue}>{user?.email ?? '—'}</Text>
+          </View>
+        </View>
+
+        {/* Görünüm */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Görünüm</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Tema</Text>
+            <View style={[styles.segmentRow, { marginTop: spacing.sm }]}>
+              {THEME_OPTIONS.map((opt) => {
+                const active = mode === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => setMode(opt.value)}
+                    style={[
+                      styles.segmentBtn,
+                      active && styles.segmentBtnActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        active && styles.segmentTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </View>
 
@@ -177,7 +322,6 @@ export default function SettingsScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* Ay başı günü modalı */}
       <MonthStartDayModal
         visible={dayModalOpen}
         currentDay={monthStartDay}
@@ -187,88 +331,3 @@ export default function SettingsScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xxl,
-    backgroundColor: colors.background,
-    flexGrow: 1,
-  },
-
-  section: { marginBottom: spacing.lg },
-  sectionTitle: {
-    fontFamily: fonts.heading,
-    fontSize: 16,
-    color: colors.ink,
-    marginBottom: spacing.sm,
-  },
-
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: spacing.md,
-  },
-  cardLabel: { color: colors.inkSoft, fontSize: 12 },
-  cardValue: { color: colors.ink, fontSize: 15, marginTop: 2 },
-
-  // Ay başı günü satırı (dokunulabilir kart)
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: spacing.md,
-    fontFamily: fonts.body,
-  },
-  rowCardPressed: { backgroundColor: colors.surfaceAlt },
-
-  // Bildirim satırı
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-  },
-  rowText: { flex: 1, marginRight: spacing.md },
-  rowTitle: { color: colors.ink, fontSize: 15, fontWeight: '600' },
-  rowSub: { color: colors.inkSoft, fontSize: 12, marginTop: 2 },
-
-  // Ay başı günü değeri (sağda büyük sayı)
-  rowValue: {
-    fontFamily: fonts.heading,
-    fontSize: 22,
-    color: colors.accent,
-    marginLeft: spacing.md,
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: colors.line,
-    marginVertical: spacing.xs,
-  },
-
-  logoutBtn: {
-    backgroundColor: colors.expense,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
-  logoutBtnText: {
-    color: colors.accentInk,
-    fontSize: 16,
-    fontFamily: fonts.body,
-  },
-});

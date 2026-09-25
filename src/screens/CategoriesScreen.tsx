@@ -17,11 +17,13 @@ import {
 } from '../lib/categoryQueries';
 import type { Category } from '../types/models';
 import CategoryFormModal from '../components/CategoryFormModal';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type UndoState = { category: Category } | null;
 
 export default function CategoriesScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const { isOnline, guard } = useOnlineGuard();
   const [loading, setLoading] = useState(true);
@@ -171,15 +173,20 @@ export default function CategoriesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: 120 },
   newBtn: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.lg },
+  newBtnText: { color: colors.accentInk, fontSize: 14, fontWeight: '700', fontFamily: fonts.body },
+  name: { color: colors.ink, fontSize: 16, flex: 1, fontFamily: fonts.body },
+  actionText: { color: colors.accent, fontSize: 14, fontWeight: '600', fontFamily: fonts.body },
   btnDisabled: { opacity: 0.4 },
   actionTextDisabled: { opacity: 0.4 },
   errorBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8E1E1', borderRadius: radius.md, borderWidth: 1, borderColor: colors.expense, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.lg },
   errorBannerText: { color: colors.expense, fontSize: 16, flex: 1 },
+  errorBannerClose: { color: colors.expense, fontSize: 20, fontWeight: '700', paddingHorizontal: spacing.sm },
   sectionTitle: { fontFamily: fonts.heading, fontSize: 16, color: colors.ink, marginBottom: spacing.sm },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line, gap: spacing.sm },

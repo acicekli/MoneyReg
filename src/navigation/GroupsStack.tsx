@@ -1,25 +1,27 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import GroupsScreen from '../screens/GroupsScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
+import AddExpenseScreen from '../screens/AddExpenseScreen';
 import AllTransactionsModal from '../screens/AllTransactionsModal';
 import CalculateModal from '../screens/CalculateModal';
 import CalculateScreen from '../screens/CalculateScreen';
 import ClosingReportScreen from '../screens/ClosingReportScreen';
 import PersonDetailScreen from '../screens/PersonDetailScreen';
 import CreateSpaceModal from '../screens/CreateSpaceModal';
-import { colors, fonts } from '../theme';
+import { fonts, useTheme } from '../theme';
 import type { GroupsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<GroupsStackParamList>();
 
 export default function GroupsStack() {
+  const { colors } = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.ink,
         headerTitleStyle: { fontFamily: fonts.heading },
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: colors.bg },
       }}
     >
       <Stack.Screen name="Groups"        component={GroupsScreen}        options={{ title: 'Gruplar' }} />
@@ -29,6 +31,7 @@ export default function GroupsStack() {
         options={{ presentation: 'modal', title: 'Yeni Alan' }}
       />
       <Stack.Screen name="GroupDetail"   component={GroupDetailScreen}   options={{ title: 'Grup Detayı' }} />
+      <Stack.Screen name="AddExpense"     component={AddExpenseScreen}     options={{ title: 'Harcama' }} />
       <Stack.Screen
         name="AllTransactions"
         component={AllTransactionsModal}

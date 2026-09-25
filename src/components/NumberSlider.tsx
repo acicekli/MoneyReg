@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { colors, fonts, spacing } from '../theme';
+import { fonts, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type Props = {
   min: number;
@@ -18,6 +18,8 @@ export default function NumberSlider({
   onChange,
   step = 1,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Slider'ın gösterdiği değer (drag sırasında)
   const [localValue, setLocalValue] = useState(value);
 
@@ -67,7 +69,8 @@ export default function NumberSlider({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   root: {
     paddingHorizontal: spacing.md,
     alignItems: 'center',

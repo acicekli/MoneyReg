@@ -16,7 +16,7 @@ import {
   removeMember,
   type SpaceMemberInfo,
 } from '../lib/groupQueries';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -41,6 +41,8 @@ export default function MembersModal({
   onClose,
   onMembersChanged,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -179,7 +181,8 @@ export default function MembersModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -229,6 +232,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: fonts.body,
+  },
+  memberName: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '600',
+    fontFamily: fonts.body,
   },
   memberDate: { color: colors.inkSoft, fontSize: 16, marginTop: 2 },
 

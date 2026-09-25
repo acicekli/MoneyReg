@@ -33,7 +33,7 @@ import {
   type Transaction,
 } from '../types/models';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useTheme } from '../theme';
 import type { HomeStackParamList } from '../navigation/types';
 import TransactionList, {
   type TransactionListItem,
@@ -47,6 +47,7 @@ type ViewCurrency = 'TRY' | CurrencyCode;
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const { isOnline } = useNetworkStatus();
   const navigation = useNavigation<Nav>();
 
@@ -237,6 +238,129 @@ export default function HomeScreen() {
     return formatCurrency(displayTotal.value, viewCurrency as 'TRY' | 'USD' | 'EUR');
   }
 
+
+
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bg,
+      padding: spacing.xl,
+    },
+
+    header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+    greeting: {
+      fontFamily: fonts.heading,
+      fontSize: 26,
+      color: colors.ink,
+    },
+    subtitle: { color: colors.inkSoft, marginTop: spacing.xs, fontSize: 14 },
+
+    totalCard: {
+      margin: spacing.lg,
+      padding: spacing.lg,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      alignItems: 'center',
+      fontFamily: fonts.body,
+    },
+    totalAmount: {
+      fontFamily: fonts.heading,
+      fontSize: 42,
+      color: colors.ink,
+      letterSpacing: 0.5,
+    },
+    rateError: {
+      marginTop: spacing.xs,
+      fontSize: 12,
+      color: colors.expense,
+      fontFamily: fonts.body,
+    },
+    currencyRow: {
+      flexDirection: 'row',
+      marginTop: spacing.md,
+      gap: spacing.sm,
+    },
+    currencyBtn: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.surface2,
+    },
+    currencyText: { color: colors.ink, fontSize: 13, fontWeight: '600', fontFamily: fonts.body },
+    currencyBtnActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    currencyTextActive: { color: colors.accentInk },
+
+    sectionTitle: {
+      fontFamily: fonts.heading,
+      fontSize: 16,
+      color: colors.ink,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+
+    emptyBox: {
+      margin: spacing.lg,
+      padding: spacing.xl,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.line,
+      alignItems: 'center',
+    },
+    emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
+    emptySub: {
+      color: colors.inkSoft,
+      marginTop: spacing.xs,
+      fontSize: 14,
+      textAlign: 'center',
+    },
+
+    allTxBtn: {
+      marginTop: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.line,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+    },
+    allTxBtnText: {
+      color: colors.accent,
+      fontFamily: fonts.bodyBold,
+      fontSize: 15,
+    },
+    fab: {
+      position: 'absolute',
+      right: spacing.lg,
+      bottom: spacing.lg,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.25)',
+      elevation: 6,
+    },
+    fabText: { color: colors.accentInk, fontSize: 32, lineHeight: 34, fontWeight: '400' },
+  }),
+    [colors]
+  );
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -255,6 +379,7 @@ export default function HomeScreen() {
   }
 
   const hasData = monthly.length > 0;
+
 
   return (
     <View style={styles.container}>
@@ -341,7 +466,7 @@ export default function HomeScreen() {
         transaction={selectedTx}
         onClose={() => setSelectedTx(null)}
         onEdit={
-          selectedTx?.created_by === user?.id
+          selectedTx && selectedTx.created_by === user?.id
             ? () => {
                 const tx = selectedTx;
                 setSelectedTx(null);
@@ -391,117 +516,3 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    padding: spacing.xl,
-  },
-
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  greeting: {
-    fontFamily: fonts.heading,
-    fontSize: 26,
-    color: colors.ink,
-  },
-  subtitle: { color: colors.inkSoft, marginTop: spacing.xs, fontSize: 14 },
-
-  totalCard: {
-    margin: spacing.lg,
-    padding: spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    fontFamily: fonts.body,
-  },
-  totalAmount: {
-    fontFamily: fonts.heading,
-    fontSize: 42,
-    color: colors.ink,
-    letterSpacing: 0.5,
-  },
-  rateError: {
-    marginTop: spacing.xs,
-    fontSize: 12,
-    color: colors.expense,
-    fontFamily: fonts.body,
-  },
-  currencyRow: {
-    flexDirection: 'row',
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  currencyBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surfaceAlt,
-  },
-  currencyBtnActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  currencyTextActive: { color: colors.accentInk },
-
-  sectionTitle: {
-    fontFamily: fonts.heading,
-    fontSize: 16,
-    color: colors.ink,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-
-  emptyBox: {
-    margin: spacing.lg,
-    padding: spacing.xl,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-  },
-  emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
-  emptySub: {
-    color: colors.inkSoft,
-    marginTop: spacing.xs,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-
-  allTxBtn: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-  },
-  allTxBtnText: {
-    color: colors.accent,
-    fontFamily: fonts.bodyBold,
-    fontSize: 15,
-  },
-  fab: {
-    position: 'absolute',
-    right: spacing.lg,
-    bottom: spacing.lg,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.25)',
-    elevation: 6,
-  },
-  fabText: { color: colors.accentInk, fontSize: 32, lineHeight: 34, fontWeight: '400' },
-});

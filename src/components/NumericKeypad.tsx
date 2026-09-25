@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 
 type Props = {
   onDigit: (d: string) => void;
@@ -15,6 +15,8 @@ const KEYS: string[][] = [
 ];
 
 export default function NumericKeypad({ onDigit, onComma, onBackspace }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.grid}>
       {KEYS.map((row, ri) => (
@@ -45,7 +47,8 @@ export default function NumericKeypad({ onDigit, onComma, onBackspace }: Props) 
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   grid: { gap: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
   key: {
@@ -59,7 +62,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   keyPressed: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
   },
   keyText: {
     fontFamily: fonts.heading,

@@ -38,7 +38,7 @@ import type { Category, Currency, Space, Transaction } from '../types/models';
 import type { HomeStackParamList } from '../navigation/types';
 import { formatAmountString } from '../lib/format';
 import BackgroundSilhouette from '../components/BackgroundSilhouette';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, useThemedStyles, type ThemeColors, useTheme } from '../theme';
 import { showAlert } from '../lib/alertHelper';
 
 import CategoryChip from '../components/CategoryChip';
@@ -72,6 +72,8 @@ function formatDateTR(iso: string): string {
 }
 
 export default function AddExpenseScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
   const navigation = useNavigation<Nav>();
@@ -783,9 +785,10 @@ export default function AddExpenseScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
   amountCard: {
@@ -813,7 +816,7 @@ const styles = StyleSheet.create({
   },
 
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceAlt },
+  pill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface2 },
   pillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   pillText: { color: colors.ink, fontSize: 13, fontWeight: '600' },
   pillTextActive: { color: colors.accentInk },
@@ -850,7 +853,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs, marginBottom: spacing.md,
   },
   dateModalPickerWrap: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface2,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
@@ -874,7 +877,7 @@ const styles = StyleSheet.create({
 
   noteInput: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, paddingVertical: spacing.md, color: colors.ink, fontSize: 15, marginBottom: spacing.lg },
 
-  parsingBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, marginBottom: spacing.sm },
+  parsingBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, marginBottom: spacing.sm },
   parsingText: { color: colors.inkSoft, fontSize: 13 },
   warningBox: { backgroundColor: '#FFF4E0', borderRadius: radius.md, borderWidth: 1, borderColor: colors.accent, padding: spacing.sm, marginBottom: spacing.sm },
   warningText: { color: colors.accent, fontSize: 12 },
@@ -883,8 +886,8 @@ const styles = StyleSheet.create({
   addReceiptText: { color: colors.accent, fontSize: 14, fontWeight: '700' },
 
   receiptRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: spacing.md, marginBottom: spacing.lg },
-  receiptThumb: { width: 64, height: 64, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
-  receiptThumbPlaceholder: { width: 64, height: 64, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  receiptThumb: { width: 64, height: 64, borderRadius: radius.sm, backgroundColor: colors.surface2 },
+  receiptThumbPlaceholder: { width: 64, height: 64, borderRadius: radius.sm, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
   receiptInfo: { flex: 1 },
   receiptName: { color: colors.ink, fontSize: 14, fontWeight: '600' },
   receiptActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
