@@ -7,7 +7,7 @@ type Props = {
   message?: string;
   onUndo: () => void;
   onExpire: () => void;
-  duration?: number; // ms, default 3000
+  duration?: number; // ms, default 2000
 };
 
 export default function UndoToast({
@@ -15,7 +15,7 @@ export default function UndoToast({
   message = 'Harcama silindi',
   onUndo,
   onExpire,
-  duration = 3000,
+  duration = 2000,
   bottomOffset = 16,
 }: Props) {
   useEffect(() => {

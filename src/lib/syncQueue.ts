@@ -1,11 +1,13 @@
 // ============================================================
 // MoneyReg — Offline kuyruk senkronizasyonu
 // Online'a geçince kuyruktaki işlemleri sırayla işler.
+// MAX_RETRIES: 3 başarısız denemeden sonra item kuyruktan düşürülür.
 // ============================================================
 
 import {
   getQueue,
   removeFromQueue,
+  updateItemRetryCount,
   type QueueItem,
 } from './offlineQueue';
 import {
@@ -17,6 +19,8 @@ import { getExchangeRateForDate } from './exchangeRate';
 import { uploadReceipt } from './receiptsStorage';
 import { emitSyncComplete } from './syncEvents';
 
+const MAX_RETRIES = 3;
+
 // ---------- Tek bir queue item'ı işle ----------
 
 async function processItem(item: QueueItem, userId: string): Promise<boolean> {
@@ -24,7 +28,6 @@ async function processItem(item: QueueItem, userId: string): Promise<boolean> {
     if (item.type === 'create_transaction') {
       const p = item.payload;
 
-      // TRY değilse kur snapshot'ı şimdi hesapla
       let exchange_rate_snapshot: number | null = null;
       if (p.currency !== 'TRY') {
         try {
@@ -33,12 +36,10 @@ async function processItem(item: QueueItem, userId: string): Promise<boolean> {
             p.expense_date
           );
         } catch {
-          // Kur alınamadıysa → bu item'ı atla, kuyrukta kalsın
           return false;
         }
       }
 
-      // Yeni seçilen yerel fotoğraf varsa Storage'a yükle
       let receipt_photo_url = p.receipt_photo_url ?? null;
       if (p.receiptLocalUri) {
         try {
@@ -46,7 +47,6 @@ async function processItem(item: QueueItem, userId: string): Promise<boolean> {
           if (up.ok) {
             receipt_photo_url = up.path;
           }
-          // Yükleme başarısızsa fotoğrafsız kaydet (kritik değil)
         } catch {
           // sessizce yut
         }
@@ -84,7 +84,6 @@ async function processItem(item: QueueItem, userId: string): Promise<boolean> {
 
     if (item.type === 'delete_transaction') {
       const result = await deleteTransaction(userId, item.payload.transactionId);
-      // Silme "bulunamadı" dönerse de kuyruktan çıkar (idempotent)
       return result.ok;
     }
 
@@ -113,14 +112,32 @@ export async function processQueue(userId: string): Promise<SyncResult> {
   let failed = 0;
 
   for (const item of queue) {
+    // 1) Retry limiti kontrolü
+    if ((item.retryCount ?? 0) >= MAX_RETRIES) {
+      console.warn(
+        `[sync] Item dropped after ${MAX_RETRIES} retries:`,
+        item.type,
+        item.id
+      );
+      await removeFromQueue(item.id);
+      failed++;
+      continue;
+    }
+
+    // 2) Item'ı işle
     const ok = await processItem(item, userId);
+
     if (ok) {
       await removeFromQueue(item.id);
       processed++;
     } else {
+      // 3) Hata → retryCount artır ve kaydet
+      const newRetryCount = (item.retryCount ?? 0) + 1;
+      await updateItemRetryCount(item.id, newRetryCount);
       failed++;
-      // Kuyruktaki bu item ve sonrası başarısız olabilir → dur
-      // (ağ hatası ise zaten bir sonraki online'da tekrar denenir)
+
+      // Ağ hatası olabilir → kuyrukta kalsın, bir sonraki sync'te tekrar dene
+      // Ama FIFO garantisi için bu noktada dur
       break;
     }
   }

@@ -26,6 +26,7 @@ import {
   mapCategoriesById,
 } from '../lib/homeQueries';
 import { deleteTransaction } from '../lib/transactionQueries';
+import { enqueue } from '../lib/offlineQueue';
 import {
   transactionAmountInTRY,
   type Category,
@@ -367,7 +368,13 @@ export default function HomeScreen() {
         }}
         onExpire={async () => {
           if (deletedTx && user) {
-            await deleteTransaction(user.id, deletedTx.id);
+            if (isOnline) {
+              await deleteTransaction(user.id, deletedTx.id);
+            } else {
+              await enqueue('delete_transaction', {
+                transactionId: deletedTx.id,
+              });
+            }
             setDeletedTx(null);
             loadData();
           }

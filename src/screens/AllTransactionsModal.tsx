@@ -11,6 +11,9 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../lib/auth-context';
+import { deleteTransaction } from '../lib/transactionQueries';
+import { enqueue } from '../lib/offlineQueue';
+import { useNetworkStatus } from '../lib/networkContext';
 import { getCached, CacheKeys } from '../lib/localCache';
 import {
   getFilteredTransactions,
@@ -21,6 +24,7 @@ import { getSpaceMembers, type SpaceMemberInfo } from '../lib/groupQueries';
 import { transactionAmountInTRY, type Category, type Transaction } from '../types/models';
 import TransactionList, { type TransactionListItem } from '../components/TransactionList';
 import TransactionDetailModal from '../components/TransactionDetailModal';
+import UndoToast from '../components/UndoToast';
 import { colors, fonts, radius, spacing } from '../theme';
 import type { HomeStackParamList } from '../navigation/types';
 
@@ -49,6 +53,7 @@ function findLabel<T extends string>(
 
 export default function AllTransactionsModal() {
   const { user } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteT>();
 
@@ -66,6 +71,7 @@ export default function AllTransactionsModal() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedTx, setSelectedTx] = useState<TransactionListItem | null>(null);
+  const [deletedTx, setDeletedTx] = useState<Transaction | null>(null);
 
   // Dropdown state
   const [periodOpen, setPeriodOpen] = useState(false);
@@ -91,6 +97,9 @@ export default function AllTransactionsModal() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    // Offline'da Supabase'e istek atma (liste bozulmasın)
+    if (!isOnline) { setLoading(false); return; }
+
     setLoading(true);
     try {
       const data = await getFilteredTransactions(
@@ -104,7 +113,7 @@ export default function AllTransactionsModal() {
     } finally {
       setLoading(false);
     }
-  }, [user, scope, period, initialSpaceId, memberIds]);
+  }, [user, isOnline, scope, period, initialSpaceId, memberIds]);
 
   useEffect(() => {
     load();
@@ -230,7 +239,10 @@ export default function AllTransactionsModal() {
               });
             }}
             onDelete={(t) => {
+              // Optimistic: listeden çıkar
               setTransactions((prev) => prev.filter((x) => x.id !== t.id));
+              // UndoToast göster
+              setDeletedTx(t as any);
             }}
           />
         )}
@@ -404,6 +416,33 @@ export default function AllTransactionsModal() {
               }
             : undefined
         }
+      />
+
+      <UndoToast
+        visible={!!deletedTx}
+        message="Harcama silindi"
+        bottomOffset={16}
+        onUndo={() => {
+          if (deletedTx) {
+            // Listeye geri ekle
+            setTransactions((prev) => [deletedTx as any, ...prev]);
+            setDeletedTx(null);
+          }
+        }}
+        onExpire={async () => {
+          if (deletedTx && user) {
+            if (isOnline) {
+              await deleteTransaction(user.id, deletedTx.id);
+            } else {
+              await enqueue('delete_transaction', {
+                transactionId: deletedTx.id,
+              });
+            }
+            setDeletedTx(null);
+            // Yeniden yükle (doğru liste için)
+            load();
+          }
+        }}
       />
     </View>
   );

@@ -18,6 +18,7 @@ export type QueueItem = {
   type: QueueItemType;
   payload: any;
   createdAt: number;
+  retryCount?: number;           // Başarısız deneme sayısı
 };
 
 // ---------- UUID üret (offline için) ----------
@@ -70,6 +71,7 @@ export async function enqueue(
     type,
     payload,
     createdAt: Date.now(),
+    retryCount: 0,
   };
   const queue = await getQueue();
   queue.push(item);
@@ -94,4 +96,20 @@ export async function clearQueue(): Promise<void> {
 export async function getQueueSize(): Promise<number> {
   const q = await getQueue();
   return q.length;
+}
+
+
+/**
+ * Bir item'ın retryCount değerini belirtilen değere ayarla.
+ */
+export async function updateItemRetryCount(
+  itemId: string,
+  retryCount: number
+): Promise<void> {
+  const queue = await getQueue();
+  const idx = queue.findIndex((q) => q.id === itemId);
+  if (idx < 0) return;
+
+  queue[idx] = { ...queue[idx], retryCount };
+  await saveQueue(queue);
 }
