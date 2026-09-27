@@ -16,15 +16,20 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
-      },
-      "ios": {
-        "simulator": true
       }
     },
     "production": {
       "environment": "production",
       "channel": "production",
       "autoIncrement": true
+    },
+    "testflight": {
+      "distribution": "store",
+      "environment": "preview",
+      "channel": "preview",
+      "ios": {
+        "buildConfiguration": "Release"
+      }
     }
   },
   "submit": {
