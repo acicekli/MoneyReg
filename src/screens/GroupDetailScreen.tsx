@@ -270,6 +270,7 @@ export default function GroupDetailScreen() {
           transactions={listItems}
           showPayer={true}
           showCategory={true}
+          variant="flat"
           emptyMessage="Henüz harcama yok."
           onPress={(t) => setSelectedTx(t)}
           editable={true}

@@ -26,11 +26,13 @@ type Props = {
 
 export default function BackgroundSilhouette({
   type,
-  size = 300,
-  opacity = 0.08,
+  size = 340,
+  opacity,
   rotation = 15,
 }: Props) {
   const { colors } = useTheme();
+  // opacity verilmediyse aktif temanın watermark değerini kullan
+  const finalOpacity = opacity ?? colors.watermarkOpacity;
   const styles = useThemedStyles(makeStyles);
   return (
     <View
@@ -47,7 +49,7 @@ export default function BackgroundSilhouette({
         height={size}
         viewBox="0 0 200 200"
         fill={colors.accent}
-        opacity={opacity}
+        opacity={finalOpacity}
       >
         {type === 'wallet' && (
           <>

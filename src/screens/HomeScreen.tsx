@@ -285,23 +285,24 @@ export default function HomeScreen() {
     },
     currencyRow: {
       flexDirection: 'row',
+      alignSelf: 'center',
       marginTop: spacing.md,
-      gap: spacing.sm,
+      gap: spacing.xs,
+      padding: 4,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: 100,
     },
     currencyBtn: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.xs,
-      borderRadius: radius.pill,
-      borderWidth: 1,
-      borderColor: colors.line,
-      backgroundColor: colors.surface2,
+      borderRadius: 100,
     },
     currencyText: { color: colors.ink, fontSize: 13, fontWeight: '600', fontFamily: fonts.body },
     currencyBtnActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
+      backgroundColor: colors.ink,
     },
-    currencyTextActive: { color: colors.accentInk },
+    currencyTextActive: { color: colors.bg },
 
     sectionTitle: {
       fontFamily: fonts.heading,
@@ -347,16 +348,16 @@ export default function HomeScreen() {
       position: 'absolute',
       right: spacing.lg,
       bottom: spacing.lg,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
+      width: 46,
+      height: 46,
+      borderRadius: 23,
       backgroundColor: colors.accent,
       alignItems: 'center',
       justifyContent: 'center',
       boxShadow: '0 4px 6px rgba(0,0,0,0.25)',
       elevation: 6,
     },
-    fabText: { color: colors.accentInk, fontSize: 32, lineHeight: 34, fontWeight: '400' },
+    fabText: { color: colors.accentInk, fontSize: 26, lineHeight: 28, fontWeight: '400' },
   }),
     [colors]
   );
@@ -432,6 +433,7 @@ export default function HomeScreen() {
               transactions={listItems}
               showCategory={true}
               showPayer={false}
+              variant="flat"
               emptyMessage="Henüz hareket yok."
               onPress={(t) => setSelectedTx(t)}
               editable={true}

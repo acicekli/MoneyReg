@@ -33,6 +33,8 @@ type Props = {
   currentUserId?: string;
   onEdit?: (t: TransactionListItem) => void;
   onDelete?: (t: TransactionListItem) => void;
+  /** 'card' = kutu tasarımı (varsayılan), 'flat' = alt çizgili sade satır */
+  variant?: 'card' | 'flat';
 };
 
 
@@ -47,6 +49,7 @@ export default function TransactionList({
   currentUserId,
   onEdit,
   onDelete,
+  variant = 'card',
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Aynı anda tek Swipeable açık olsun
@@ -77,6 +80,7 @@ export default function TransactionList({
             onEdit={onEdit}
             onDelete={onDelete}
             openRowRef={openRowRef}
+            variant={variant}
           />
         );
       })}
@@ -95,6 +99,7 @@ type RowProps = {
   onEdit?: (t: TransactionListItem) => void;
   onDelete?: (t: TransactionListItem) => void;
   openRowRef: React.MutableRefObject<Swipeable | null>;
+  variant: 'card' | 'flat';
 };
 
 function TransactionRow({
@@ -106,6 +111,7 @@ function TransactionRow({
   onEdit,
   onDelete,
   openRowRef,
+  variant,
 }: RowProps) {
   const styles = useThemedStyles(makeStyles);
   const tryValue = transactionAmountInTRY(t);
@@ -153,8 +159,11 @@ function TransactionRow({
     );
   }, [t, onEdit, onDelete, openRowRef]);
 
+  const isFlat = variant === 'flat';
+
   const rowContent = (
-    <View style={styles.txRow}>
+    <View style={isFlat ? styles.txRowFlat : styles.txRow}>
+      {isFlat && <View style={styles.txDot} />}
       <View style={styles.txLeft}>
         {showCategory && (
           <View style={styles.titleRow}>
@@ -184,7 +193,9 @@ function TransactionRow({
       </View>
 
       <View style={styles.txRight}>
-        <Text style={styles.txAmount}>-{formatCurrency(t.amount, t.currency)}</Text>
+        <Text style={[styles.txAmount, isFlat && styles.txAmountFlat]}>
+          -{formatCurrency(t.amount, t.currency)}
+        </Text>
         {isForeign && <Text style={styles.txTry}>≈ {formatCurrency(tryValue)}</Text>}
         {showPayer && t.payer_display_name ? (
           <Text style={styles.txPayer} numberOfLines={1}>{t.payer_display_name} ödedi</Text>
@@ -195,7 +206,10 @@ function TransactionRow({
 
   if (!swipeEnabled) {
     return (
-      <Pressable onPress={handlePress} style={{ marginBottom: spacing.sm }}>
+      <Pressable
+        onPress={handlePress}
+        style={isFlat ? undefined : { marginBottom: spacing.sm }}
+      >
         {rowContent}
       </Pressable>
     );
@@ -235,6 +249,26 @@ const makeStyles = (colors: ThemeColors) =>
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.md,
+  },
+  txRowFlat: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  txDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    marginTop: 6,
+    marginRight: spacing.sm,
+  },
+  txAmountFlat: {
+    fontVariant: ['tabular-nums'],
   },
   txLeft: { flex: 1, marginRight: spacing.md },
   txRight: { alignItems: 'flex-end', maxWidth: '45%' },

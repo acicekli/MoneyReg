@@ -31,7 +31,7 @@ export const lightTheme: ThemeColors = {
   accentInk: '#FFFFFF',
   expense: '#A83636',
   income: '#3F7D46',
-  watermarkOpacity: 0.12,
+  watermarkOpacity: 0.18,
 
   // Eski API aliases:
   background: '#D8C8A3',
@@ -50,7 +50,7 @@ export const darkTheme: ThemeColors = {
   accentInk: '#14171F',
   expense: '#D96666',
   income: '#7FBE6C',
-  watermarkOpacity: 0.15,
+  watermarkOpacity: 0.22,
 
   // Eski API aliases:
   background: '#0C0E14',
