@@ -12,6 +12,7 @@ export type Currency = 'TRY' | 'USD' | 'EUR';
 export interface Profile {
   id: string;
   display_name: string | null;
+  email: string | null;      // auth.users.email ile senkronize
   default_currency: string;
   month_start_day: number;   // 1-28 arası, aylık raporun başlangıç günü
   created_at: string;
