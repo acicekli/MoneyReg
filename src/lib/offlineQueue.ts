@@ -11,7 +11,10 @@ const QUEUE_KEY = 'offline-queue:v1';
 export type QueueItemType =
   | 'create_transaction'
   | 'update_transaction'
-  | 'delete_transaction';
+  | 'delete_transaction'
+  | 'create_installment_group'
+  | 'delete_installment_group'
+  | 'submit_feedback';
 
 export type QueueItem = {
   id: string;                    // client-side unique id

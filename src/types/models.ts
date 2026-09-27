@@ -57,6 +57,10 @@ export interface Transaction {
   expense_date: string;   // ISO date: "2026-09-17"
   receipt_photo_url: string | null;
   created_at: string;
+  // Taksit alanları (taksitli değilse null)
+  installment_group_id: string | null;
+  installment_number: number | null;
+  total_installments: number | null;
 }
 
 // ============================================================

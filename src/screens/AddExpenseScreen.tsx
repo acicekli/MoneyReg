@@ -43,6 +43,13 @@ import { showAlert } from '../lib/alertHelper';
 
 import CategoryChip from '../components/CategoryChip';
 import CategoryFormModal from '../components/CategoryFormModal';
+import InstallmentSection, { type AmountMode } from '../components/InstallmentSection';
+import { splitInstallments } from '../utils/installmentHelper';
+import {
+  createInstallmentTransactions,
+  deleteInstallmentGroup,
+  getInstallmentGroup,
+} from '../services/transactionService';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'AddExpense'>;
 type RouteT = RouteProp<HomeStackParamList, 'AddExpense'>;
@@ -69,6 +76,18 @@ function isoToDate(iso: string): Date {
 function formatDateTR(iso: string): string {
   const [y, m, d] = iso.split('-');
   return `${d}.${m}.${y}`;
+}
+
+// ISO tarihe ay ekleme (ayın sonu taşması kırpılır)
+function addMonthsISO(iso: string, months: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  const t = base.getUTCMonth() + months;
+  const ty = base.getUTCFullYear() + Math.floor(t / 12);
+  const tm = ((t % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+  const day = Math.min(d, lastDay);
+  return `${ty}-${String(tm + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 export default function AddExpenseScreen() {
@@ -123,6 +142,14 @@ export default function AddExpenseScreen() {
 
   // ---------- Kategori modal ----------
   const [categoryFormOpen, setCategoryFormOpen] = useState(false);
+
+  // ---------- Taksit ----------
+  const [installmentEnabled, setInstallmentEnabled] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState(3);
+  const [startNextMonth, setStartNextMonth] = useState(false);
+  const [amountMode, setAmountMode] = useState<AmountMode>('total');
+  const [originalGroupId, setOriginalGroupId] = useState<string | null>(null);
+  const [existingInstallmentCount, setExistingInstallmentCount] = useState<number | null>(null);
 
   // ---------- İlk yükleme (cache-first) ----------
   useEffect(() => {
@@ -233,6 +260,27 @@ export default function AddExpenseScreen() {
             setExistingReceiptPath(tx.receipt_photo_url ?? null);
             setOriginalDate(tx.expense_date);
             setOriginalCurrency(tx.currency as Currency);
+
+            // Taksitli harcama mı? Grup bilgilerini yükle
+            if (tx.installment_group_id && tx.total_installments) {
+              setInstallmentEnabled(true);
+              setInstallmentCount(tx.total_installments);
+              setOriginalGroupId(tx.installment_group_id);
+              setExistingInstallmentCount(tx.total_installments);
+              setAmountMode('total');
+              // Not: title'dan "(1/3)" kısmını çıkar
+              const cleanedNote = (tx.note ?? '').replace(/\s*\(\d+\/\d+\)\s*$/, '');
+              setNote(cleanedNote);
+
+              // Toplam tutarı hesapla (mevcut taksitlerin toplamı)
+              const groupRes = await getInstallmentGroup(tx.installment_group_id);
+              if (groupRes.ok && groupRes.transactions.length > 0) {
+                const total = groupRes.transactions.reduce((sum, t) => sum + t.amount, 0);
+                setAmountStr(Math.round(total * 100) / 100 + '');
+                // Not: toFixed(2) yerine string — handleAmountChange formatına uygun
+                setAmountStr((Math.round(total * 100) / 100).toFixed(2).replace('.', ','));
+              }
+            }
           } else {
             Alert.alert('Hata', 'Harcama bulunamadı.');
             navigation.goBack();
@@ -378,6 +426,58 @@ export default function AddExpenseScreen() {
       // OFFLINE YOL: kuyruğa ekle, kur/fiş yükleme YAPMA
       // ============================================================
       if (!isOnline) {
+        // ─── TAKSİT KAPATILDI (offline düzenleme) ───
+        if (isEditing && originalGroupId && !installmentEnabled) {
+          const baseInput = {
+            space_id: spaceId,
+            category_id: effectiveCategoryId,
+            amount: amountNumber,
+            currency,
+            note: note.trim() || null,
+            expense_date: dateISO,
+            receipt_photo_url: existingReceiptPath ?? null,
+            receiptLocalUri: receiptUri ?? null,
+          };
+          // ÖNCE yeni tek transaction
+          await enqueue('create_transaction', {
+            id: generateClientId(),
+            ...baseInput,
+            exchange_rate_snapshot: existingTx?.exchange_rate_snapshot ?? null,
+          });
+          // SONRA eski grubu sil
+          await enqueue('delete_installment_group', { groupId: originalGroupId });
+          navigation.goBack();
+          return;
+        }
+
+        // ─── TAKSİTLİ DAL (offline) ───
+        if (installmentEnabled && installmentCount >= 2) {
+          const totalAmount = amountMode === 'total'
+            ? amountNumber
+            : Math.round(amountNumber * installmentCount * 100) / 100;
+          const effectiveDate = startNextMonth ? addMonthsISO(dateISO, 1) : dateISO;
+          const rows = splitInstallments({
+            title: note.trim() || 'Taksitli harcama',
+            totalAmount,
+            installmentCount,
+            startDate: effectiveDate,
+            categoryId: effectiveCategoryId,
+            userId: user.id,
+            spaceId,
+            currency,
+            exchangeRateSnapshot: null,
+            receiptPhotoUrl: existingReceiptPath ?? null,
+          });
+          // ÖNCE yeni grubu kuyruğa
+          await enqueue('create_installment_group', { rows });
+          // SONRA eski grubu sil
+          if (originalGroupId) {
+            await enqueue('delete_installment_group', { groupId: originalGroupId });
+          }
+          navigation.goBack();
+          return;
+        }
+
         console.log('[handleSave] OFFLINE YOL, baseInput hazırlanıyor');
         const baseInput = {
           space_id: spaceId,
@@ -454,6 +554,76 @@ export default function AddExpenseScreen() {
         }
       }
 
+      // ─── TAKSİT KAPATILDI (online düzenleme) ───
+      if (isEditing && originalGroupId && !installmentEnabled) {
+        const newInput = {
+          space_id: spaceId,
+          category_id: effectiveCategoryId,
+          amount: amountNumber,
+          currency,
+          exchange_rate_snapshot,
+          note: note.trim() || null,
+          expense_date: dateISO,
+          receipt_photo_url,
+        };
+        // ÖNCE yeni tek transaction oluştur
+        const createRes = await createTransaction(user.id, newInput);
+        if (!createRes.ok) {
+          Alert.alert('Kaydedilemedi', createRes.error);
+          setSaving(false);
+          return;
+        }
+        // SONRA eski grubu sil
+        const delRes = await deleteInstallmentGroup(originalGroupId);
+        if (!delRes.ok) {
+          Alert.alert(
+            'Kısmi başarı',
+            'Yeni harcama kaydedildi ama eski taksit grubu silinemedi. Lütfen tekrar deneyin.'
+          );
+        }
+        navigation.goBack();
+        return;
+      }
+
+      // ─── TAKSİTLİ DAL (online) ───
+      if (installmentEnabled && installmentCount >= 2) {
+        const totalAmount = amountMode === 'total'
+          ? amountNumber
+          : Math.round(amountNumber * installmentCount * 100) / 100;
+        const effectiveDate = startNextMonth ? addMonthsISO(dateISO, 1) : dateISO;
+        const rows = splitInstallments({
+          title: note.trim() || 'Taksitli harcama',
+          totalAmount,
+          installmentCount,
+          startDate: effectiveDate,
+          categoryId: effectiveCategoryId,
+          userId: user.id,
+          spaceId,
+          currency,
+          exchangeRateSnapshot: exchange_rate_snapshot,
+          receiptPhotoUrl: receipt_photo_url,
+        });
+        // ÖNCE yeni grubu oluştur
+        const insRes = await createInstallmentTransactions(rows);
+        if (!insRes.ok) {
+          Alert.alert('Kaydedilemedi', insRes.error);
+          setSaving(false);
+          return;
+        }
+        // SONRA eski grubu sil
+        if (originalGroupId) {
+          const delRes = await deleteInstallmentGroup(originalGroupId);
+          if (!delRes.ok) {
+            Alert.alert(
+              'Kısmi başarı',
+              'Yeni grup kaydedildi ama eski grup silinemedi. Lütfen tekrar deneyin.'
+            );
+          }
+        }
+        navigation.goBack();
+        return;
+      }
+
       // 3) Kaydet/Güncelle
       const input = {
         space_id: spaceId,
@@ -514,6 +684,24 @@ export default function AddExpenseScreen() {
     <View style={styles.root}>
       <BackgroundSilhouette type="receipt" />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Taksitli harcama (en üstte) */}
+        {!isEditing || originalGroupId ? (
+          <View style={{ marginBottom: spacing.md }}>
+            <InstallmentSection
+              enabled={installmentEnabled}
+              onToggleEnabled={setInstallmentEnabled}
+              amount={amountNumber}
+              amountMode={amountMode}
+              onAmountModeChange={setAmountMode}
+              currencySymbol={CURRENCY_SYMBOL[currency]}
+              installmentCount={installmentCount}
+              onInstallmentCountChange={setInstallmentCount}
+              startNextMonth={startNextMonth}
+              onStartNextMonthChange={setStartNextMonth}
+            />
+          </View>
+        ) : null}
+
         <View style={styles.amountCard}>
           <View style={styles.amountRow}>
             <Text style={styles.amountSymbol}>{CURRENCY_SYMBOL[currency]}</Text>

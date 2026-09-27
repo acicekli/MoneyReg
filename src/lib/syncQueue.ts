@@ -4,6 +4,7 @@
 // MAX_RETRIES: 3 başarısız denemeden sonra item kuyruktan düşürülür.
 // ============================================================
 
+import { supabase } from './supabase';
 import {
   getQueue,
   removeFromQueue,
@@ -85,6 +86,40 @@ async function processItem(item: QueueItem, userId: string): Promise<boolean> {
     if (item.type === 'delete_transaction') {
       const result = await deleteTransaction(userId, item.payload.transactionId);
       return result.ok;
+    }
+
+    if (item.type === 'create_installment_group') {
+      const { rows } = item.payload;
+      if (!Array.isArray(rows) || rows.length === 0) return true;
+      // Postgres transaction → atomik (ya hepsi ya hiç)
+      const { error } = await supabase
+        .from('transactions')
+        .insert(rows);
+      return !error;
+    }
+
+    if (item.type === 'delete_installment_group') {
+      const { groupId } = item.payload;
+      // RLS zaten sadece kendi kayıtlarına izin verir
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('installment_group_id', groupId);
+      return !error;
+    }
+
+    if (item.type === 'submit_feedback') {
+      const p = item.payload;
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          user_id: p.user_id,
+          email: p.email ?? null,
+          category: p.category,
+          message: p.message,
+          platform: p.platform ?? null,
+        });
+      return !error;
     }
 
     // Bilinmeyen tip → kuyruktan çıkar
