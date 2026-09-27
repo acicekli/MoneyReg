@@ -11,6 +11,7 @@ export type ThemeColors = {
   line: string;
   accent: string;
   accentInk: string;
+  accentSoft: string;
   expense: string;
   income: string;
   watermarkOpacity: number;
@@ -29,6 +30,7 @@ export const lightTheme: ThemeColors = {
   line: '#BBB08E',
   accent: '#C4791A',
   accentInk: '#FFFFFF',
+  accentSoft: '#F5E6CC',    // Pasif buton zemini (light)
   expense: '#A83636',
   income: '#3F7D46',
   watermarkOpacity: 0.18,
@@ -48,6 +50,7 @@ export const darkTheme: ThemeColors = {
   line: '#2D3342',
   accent: '#E3A934',
   accentInk: '#14171F',
+  accentSoft: '#E3A934',    // Aktif buton zemini (dark)
   expense: '#D96666',
   income: '#7FBE6C',
   watermarkOpacity: 0.22,

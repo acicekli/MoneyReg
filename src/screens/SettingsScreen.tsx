@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,13 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../lib/auth-context';
+import { useNetworkStatus } from '../lib/networkContext';
+import { enqueue } from '../lib/offlineQueue';
+import {
+  submitFeedback,
+  type FeedbackCategory,
+} from '../lib/feedbackQueries';
+import FeedbackModal from '../components/FeedbackModal';
 import {
   loadNotificationSettings,
   saveNotificationSettings,
@@ -19,6 +27,7 @@ import {
 import { rescheduleAllNotifications } from '../lib/notifications';
 import { getMonthStartDaySetting } from '../lib/reportsQueries';
 import MonthStartDayModal from '../components/MonthStartDayModal';
+import { showAlert } from '../lib/alertHelper';
 import { fonts, radius, spacing, useTheme, type ThemeMode } from '../theme';
 import type { SettingsStackParamList } from '../navigation/types';
 
@@ -45,6 +54,10 @@ export default function SettingsScreen() {
   const [monthStartDay, setMonthStartDay] = useState(1);
   const [dayModalOpen, setDayModalOpen] = useState(false);
 
+  // ---------- Geri bildirim ----------
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+
   useEffect(() => {
     (async () => {
       if (!user) return;
@@ -57,6 +70,46 @@ export default function SettingsScreen() {
       setLoading(false);
     })();
   }, [user]);
+
+  const { isOnline } = useNetworkStatus();
+
+  const handleFeedbackSubmit = useCallback(
+    async (
+      category: FeedbackCategory,
+      message: string
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (!user) return { ok: false, error: 'Oturum bulunamadı' };
+      setFeedbackSaving(true);
+      try {
+        const platform = Platform.OS;
+
+        if (!isOnline) {
+          // Offline → kuyruğa
+          await enqueue('submit_feedback', {
+            user_id: user.id,
+            email: user.email ?? null,
+            category,
+            message,
+            platform,
+          });
+          return { ok: true };
+        }
+
+        // Online → direkt gönder
+        const result = await submitFeedback({
+          userId: user.id,
+          email: user.email ?? null,
+          category,
+          message,
+          platform,
+        });
+        return result;
+      } finally {
+        setFeedbackSaving(false);
+      }
+    },
+    [user, isOnline]
+  );
 
   const updateSetting = useCallback(
     async (key: keyof NotificationSettings, value: boolean) => {
@@ -316,6 +369,26 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Geri Bildirim */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Geri Bildirim</Text>
+          <Pressable
+            onPress={() => setFeedbackOpen(true)}
+            style={({ pressed }) => [
+              styles.rowCard,
+              pressed && styles.rowCardPressed,
+            ]}
+          >
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>Geri Bildirim Gönder</Text>
+              <Text style={styles.rowSub}>
+                Hata, öneri veya düşüncelerini paylaş
+              </Text>
+            </View>
+            <Text style={styles.rowValue}>›</Text>
+          </Pressable>
+        </View>
+
         {/* Çıkış */}
         <Pressable style={styles.logoutBtn} onPress={signOut}>
           <Text style={styles.logoutBtnText}>Çıkış Yap</Text>
@@ -327,6 +400,22 @@ export default function SettingsScreen() {
         currentDay={monthStartDay}
         onClose={() => setDayModalOpen(false)}
         onSaved={(newDay) => setMonthStartDay(newDay)}
+      />
+
+      <FeedbackModal
+        visible={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        onSubmit={async (category, message) => {
+          const result = await handleFeedbackSubmit(category, message);
+          if (result.ok) {
+            setFeedbackOpen(false);
+            showAlert('Teşekkürler!', 'Geri bildirimin alındı.');
+          } else {
+            showAlert('Gönderilemedi', result.error);
+          }
+          return result;
+        }}
+        saving={feedbackSaving}
       />
     </>
   );

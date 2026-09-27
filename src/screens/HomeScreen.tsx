@@ -109,6 +109,10 @@ export default function HomeScreen() {
             receipt_photo_url: p.receiptLocalUri ?? p.receipt_photo_url ?? null,
             created_at: new Date(q.createdAt).toISOString(),
             updated_at: new Date(q.createdAt).toISOString(),
+            // Offline kuyruğunda taksit yok — her zaman null
+            installment_group_id: null,
+            installment_number: null,
+            total_installments: null,
           } as Transaction;
         });
 
