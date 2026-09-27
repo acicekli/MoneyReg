@@ -15,6 +15,7 @@ export interface Profile {
   default_currency: string;
   month_start_day: number;   // 1-28 arası, aylık raporun başlangıç günü
   created_at: string;
+  is_admin: boolean;         // Admin yetkisi
 }
 
 // ---------- Spaces ----------

@@ -9,9 +9,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../lib/auth-context';
+import { isCurrentUserAdmin } from '../lib/adminQueries';
 import { useNetworkStatus } from '../lib/networkContext';
 import { enqueue } from '../lib/offlineQueue';
 import {
@@ -58,6 +59,9 @@ export default function SettingsScreen() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackSaving, setFeedbackSaving] = useState(false);
 
+  // ---------- Admin ----------
+  const [isAdmin, setIsAdmin] = useState(false);
+
   useEffect(() => {
     (async () => {
       if (!user) return;
@@ -70,6 +74,14 @@ export default function SettingsScreen() {
       setLoading(false);
     })();
   }, [user]);
+
+  // Admin kontrolü — sayfa her açıldığında
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      isCurrentUserAdmin(user.id).then(setIsAdmin);
+    }, [user])
+  );
 
   const { isOnline } = useNetworkStatus();
 
@@ -388,6 +400,28 @@ export default function SettingsScreen() {
             <Text style={styles.rowValue}>›</Text>
           </Pressable>
         </View>
+
+        {/* Admin — sadece admin kullanıcılara görünür */}
+        {isAdmin && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Admin</Text>
+            <Pressable
+              onPress={() => navigation.navigate('AdminFeedback')}
+              style={({ pressed }) => [
+                styles.rowCard,
+                pressed && styles.rowCardPressed,
+              ]}
+            >
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Geri Bildirimler</Text>
+                <Text style={styles.rowSub}>
+                  Kullanıcı feedback'lerini görüntüle ve yönet
+                </Text>
+              </View>
+              <Text style={styles.rowValue}>›</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Çıkış */}
         <Pressable style={styles.logoutBtn} onPress={signOut}>

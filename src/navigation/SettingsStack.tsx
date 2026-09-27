@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from '../screens/SettingsScreen';
 import CategoriesScreen from '../screens/CategoriesScreen';
+import AdminFeedbackScreen from '../screens/AdminFeedbackScreen';
 import { fonts, useTheme } from '../theme';
 import type { SettingsStackParamList } from './types';
 
@@ -19,6 +20,11 @@ export default function SettingsStack() {
     >
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ayarlar' }} />
       <Stack.Screen name="Categories" component={CategoriesScreen} options={{ title: 'Kategoriler' }} />
+      <Stack.Screen
+        name="AdminFeedback"
+        component={AdminFeedbackScreen}
+        options={{ title: 'Geri Bildirimler' }}
+      />
     </Stack.Navigator>
   );
 }

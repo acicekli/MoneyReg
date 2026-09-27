@@ -30,6 +30,7 @@ export type ReportsStackParamList = {
 export type SettingsStackParamList = {
   Settings: undefined;
   Categories: undefined;
+  AdminFeedback: undefined;
 };
 
 export type MainTabParamList = {
