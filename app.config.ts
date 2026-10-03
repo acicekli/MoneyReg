@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'MoneyReg',
   slug: 'harcama-takip',
-  version: '1.0.0',
+  version: '1.1.0',
   orientation: 'portrait',
   scheme: 'harcamatakip',
   icon: './assets/icon.png',
