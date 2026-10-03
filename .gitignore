@@ -49,3 +49,9 @@ supabase/.branches/
 
 # Vercel
 .vercel
+
+# Backup files
+*.bak
+*.bak-*
+*.zip
+supabase/.temp/
