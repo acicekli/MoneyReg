@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
-import { cancelAllReportNotifications } from './notifications';
 
 type AuthContextValue = {
   session: Session | null;
@@ -70,14 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // sessiz
     }
-    // Planlı bildirimlerde tutar bilgisi var → çıkışta temizle
-    if (Platform.OS !== 'web') {
-      try {
-        await cancelAllReportNotifications();
-      } catch {
-        // sessiz
-      }
-    }
+    // Planlı bildirimler bilerek iptal edilmez: oturum kapalıyken de hatırlatma gelsin.
     // Offline kuyruk SİLİNMEZ: öğeler kullanıcıya bağlı (userId), o hesap
     // tekrar girince senkronize edilir; başka hesaba yazılmaz.
     await supabase.auth.signOut();

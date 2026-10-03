@@ -397,7 +397,6 @@ export default function AddExpenseScreen() {
 
   // ---------- Kaydet ----------
   async function handleSave() {
-    console.log('[handleSave] isOnline=', isOnline, 'currency=', currency, 'amount=', amountNumber);
     if (!user) return;
 
     if (amountNumber <= 0) {
@@ -478,7 +477,6 @@ export default function AddExpenseScreen() {
           return;
         }
 
-        console.log('[handleSave] OFFLINE YOL, baseInput hazırlanıyor');
         const baseInput = {
           space_id: spaceId,
           category_id: effectiveCategoryId,
@@ -492,24 +490,23 @@ export default function AddExpenseScreen() {
 
         try {
           if (isEditing) {
-            const item = await enqueue('update_transaction', {
+            await enqueue('update_transaction', {
               transactionId,
               ...baseInput,
               exchange_rate_snapshot: existingTx?.exchange_rate_snapshot ?? null,
             });
-            console.log('[handleSave] update enqueue OK:', item.id);
           } else {
-            const item = await enqueue('create_transaction', {
+            await enqueue('create_transaction', {
               id: generateClientId(),
               ...baseInput,
               exchange_rate_snapshot: null,
             });
-            console.log('[handleSave] create enqueue OK:', item.id);
           }
-        } catch (e: any) {
-          console.log('[handleSave] enqueue HATA:', e?.message ?? e);
+        } catch {
+          // Kuyruğa yazılamadıysa sayfadan çıkma; kullanıcı verisini kaybetmesin
+          showAlert('Kaydedilemedi', 'Harcama kaydedilemedi, lütfen tekrar dene.');
+          return;
         }
-        console.log('[handleSave] goBack öncesi');
         navigation.goBack();
         return;
       }

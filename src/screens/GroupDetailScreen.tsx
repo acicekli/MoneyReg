@@ -409,12 +409,14 @@ export default function GroupDetailScreen() {
         }}
         onExpire={async () => {
           if (deletedTxs.length === 0 || !user) return;
-          console.log('[onExpire] deleting', deletedTxs.length, 'txs');
           try {
             for (const tx of deletedTxs) {
-              console.log('[onExpire] delete', tx.id.slice(0, 8), 'online:', isOnline);
               if (isOnline) {
-                await deleteTransaction(user.id, tx.id);
+                const r = await deleteTransaction(user.id, tx.id);
+                // Ağ hatası (hata kodu yok) → kuyruğa al, sonra senkronize edilir
+                if (!r.ok && !r.code) {
+                  await enqueue('delete_transaction', { transactionId: tx.id });
+                }
               } else {
                 await enqueue('delete_transaction', {
                   transactionId: tx.id,

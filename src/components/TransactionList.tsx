@@ -140,7 +140,7 @@ function TransactionRow({
     }
     // Hiç menü açık değilse → detay aç
     onPress?.(t);
-  }, [openRowId, t.id, onPress, setOpenRowId]);
+  }, [openRowId, t, onPress, setOpenRowId]);
 
   // Tap gesture — worklet + runOnJS
   const tapGesture = Gesture.Tap()
@@ -154,9 +154,7 @@ function TransactionRow({
 
   // Başka satır açıkken bu satır anında kapanmalı
   useEffect(() => {
-    console.log('[useEffect] t.id:', t.id.slice(0, 8), 'openRowId:', openRowId?.slice(0, 8) ?? 'null', 'hasRef:', !!swipeableRef.current);
     if (openRowId !== t.id && swipeableRef.current) {
-      console.log('[useEffect] closing row', t.id.slice(0, 8));
       swipeableRef.current.close();
     }
   }, [openRowId, t.id]);
