@@ -54,4 +54,3 @@ supabase/.branches/
 *.bak
 *.bak-*
 *.zip
-supabase/.temp/
