@@ -46,8 +46,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     policy: 'appVersion',
   },
   extra: {
-    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    // Lokal geliştirmede .env, yoksa fallback (build için)
+    supabaseUrl:
+      process.env.EXPO_PUBLIC_SUPABASE_URL ??
+      'https://duscbuewsovybmnakrob.supabase.co',
+    supabaseAnonKey:
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+      'sb_publishable_OImFRV5OHZDIEz7cXQ9QlQ_mndB5E5T',
     eas: {
       projectId: '4601e525-c3d5-4cbf-991b-b6a38e1eb5b8',
     },
