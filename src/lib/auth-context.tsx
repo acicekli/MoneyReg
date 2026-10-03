@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { cancelAllReportNotifications } from './notifications';
 
 type AuthContextValue = {
   session: Session | null;
@@ -18,10 +21,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    (async () => {
+      try {
+        // "Beni hatırla" işaretsizse → oturumu kapat
+        const remember = await AsyncStorage.getItem('remember_me');
+        if (remember === 'false') {
+          await supabase.auth.signOut();
+          await AsyncStorage.removeItem('remember_me');
+        }
+
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+      } catch {
+        // Oturum okunamazsa giriş ekranına düşsün, sonsuz yükleme olmasın
+        setSession(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
@@ -47,6 +64,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // "Beni hatırla" bayrağını temizle
+    try {
+      await AsyncStorage.removeItem('remember_me');
+    } catch {
+      // sessiz
+    }
+    // Planlı bildirimlerde tutar bilgisi var → çıkışta temizle
+    if (Platform.OS !== 'web') {
+      try {
+        await cancelAllReportNotifications();
+      } catch {
+        // sessiz
+      }
+    }
+    // Offline kuyruk SİLİNMEZ: öğeler kullanıcıya bağlı (userId), o hesap
+    // tekrar girince senkronize edilir; başka hesaba yazılmaz.
     await supabase.auth.signOut();
   }
 

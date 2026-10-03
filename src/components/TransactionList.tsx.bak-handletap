@@ -132,13 +132,15 @@ function TransactionRow({
 
   // Tap handler — JS thread (worklet değil)
   const handleTap = useCallback(() => {
-    // Herhangi bir menü açıksa → sadece kapat (detay açma)
-    if (openRowId !== null) {
+    console.log('[handleTap] rowId:', t.id, 'openRowId:', openRowId, 'match:', openRowId === t.id);
+    if (openRowId === t.id) {
+      // Menü açıkken tap → sadece kapat
+      console.log('[handleTap] closing menu');
       setOpenRowId(null);
       swipeableRef.current?.close();
       return;
     }
-    // Hiç menü açık değilse → detay aç
+    console.log('[handleTap] opening detail');
     onPress?.(t);
   }, [openRowId, t.id, onPress, setOpenRowId]);
 
@@ -287,7 +289,6 @@ const makeStyles = (colors: ThemeColors) =>
     paddingHorizontal: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
-    minHeight: 64,
   },
   txDot: {
     width: 8,

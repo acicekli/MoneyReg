@@ -42,3 +42,10 @@ yarn-error.*
 .env
 .env.save
 *.env.save
+
+# Supabase CLI yerel durumu
+supabase/.temp/
+supabase/.branches/
+
+# Vercel
+.vercel

@@ -61,7 +61,7 @@ export default function HomeScreen() {
   const [usdRate, setUsdRate] = useState<number | null>(null);
   const [eurRate, setEurRate] = useState<number | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
-  const [deletedTxs, setDeletedTxs] = useState<Transaction[]>([]);
+  const [deletedTx, setDeletedTx] = useState<Transaction | null>(null);
   const [selectedTx, setSelectedTx] = useState<TransactionListItem | null>(null);
 
   const loadData = useCallback(async () => {
@@ -452,8 +452,8 @@ export default function HomeScreen() {
                 // Optimistic: listeden hemen çıkar
                 setRecent((prev) => prev.filter((x) => x.id !== t.id));
                 setMonthly((prev) => prev.filter((x) => x.id !== t.id));
-                // Kuyruğa ekle (birden fazla silme desteklensin)
-                setDeletedTxs((prev) => [...prev, t]);
+                // UndoToast göster
+                setDeletedTx(t);
               }}
             />
 
@@ -487,36 +487,26 @@ export default function HomeScreen() {
       />
 
       <UndoToast
-        visible={deletedTxs.length > 0}
-        message={
-          deletedTxs.length > 1
-            ? `${deletedTxs.length} harcama silindi`
-            : 'Harcama silindi'
-        }
+        visible={!!deletedTx}
+        message="Harcama silindi"
         bottomOffset={100}
         onUndo={() => {
-          // Son silineni geri koy
-          const last = deletedTxs[deletedTxs.length - 1];
-          if (last) {
-            setRecent((prev) => [last, ...prev]);
-            setMonthly((prev) => [last, ...prev]);
-            setDeletedTxs((prev) => prev.slice(0, -1));
+          if (deletedTx) {
+            setRecent((prev) => [deletedTx, ...prev]);
+            setMonthly((prev) => [deletedTx, ...prev]);
+            setDeletedTx(null);
           }
         }}
         onExpire={async () => {
-          if (deletedTxs.length === 0 || !user) return;
-          try {
-            for (const tx of deletedTxs) {
-              if (isOnline) {
-                await deleteTransaction(user.id, tx.id);
-              } else {
-                await enqueue('delete_transaction', {
-                  transactionId: tx.id,
-                });
-              }
+          if (deletedTx && user) {
+            if (isOnline) {
+              await deleteTransaction(user.id, deletedTx.id);
+            } else {
+              await enqueue('delete_transaction', {
+                transactionId: deletedTx.id,
+              });
             }
-          } finally {
-            setDeletedTxs([]);
+            setDeletedTx(null);
             loadData();
           }
         }}

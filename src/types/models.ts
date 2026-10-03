@@ -71,6 +71,7 @@ export interface Transaction {
 
 // Transaction formu için (oluşturma)
 export interface NewTransactionInput {
+  id?: string;                   // Offline kuyruk için client-side UUID (idempotent insert)
   space_id: string;
   amount: number;
   currency: Currency;

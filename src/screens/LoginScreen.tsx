@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -25,6 +26,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const passwordRef = useRef<any>(null);
 
   async function handleLogin() {
@@ -35,7 +37,16 @@ export default function LoginScreen({ navigation }: Props) {
     setBusy(true);
     const { error } = await signIn(email.trim(), password);
     setBusy(false);
-    if (error) showAlert('Giriş başarısız', error);
+    if (error) {
+      showAlert('Giriş başarısız', error);
+      return;
+    }
+    // Giriş başarılı → "beni hatırla" bayrağını kaydet
+    try {
+      await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
+    } catch {
+      // sessiz
+    }
   }
 
   return (
@@ -86,6 +97,17 @@ export default function LoginScreen({ navigation }: Props) {
             returnKeyType="go"
             onSubmitEditing={handleLogin}
           />
+
+          <Pressable
+            onPress={() => setRememberMe(!rememberMe)}
+            style={styles.rememberRow}
+            hitSlop={8}
+          >
+            <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.rememberLabel}>Beni hatırla</Text>
+          </Pressable>
 
           <Pressable
             style={[styles.button, busy && styles.buttonDisabled]}
@@ -191,6 +213,38 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.accentInk,
     fontFamily: fonts.bodyBold,
     fontSize: 16,
+  },
+
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.inkSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  checkmark: {
+    color: colors.accentInk,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  rememberLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.ink,
   },
 
   linkRow: {

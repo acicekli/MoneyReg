@@ -1,11 +1,60 @@
 // ============================================================
 // MoneyReg — parse-receipt Edge Function
-// Gemini 2.5 Flash-Lite ile fiş görselinden tutar/kategori/tarih çıkarır.
+// Gemini ile fiş görselinden tutar/kategori/tarih çıkarır.
+// Model adı GEMINI_MODEL env değişkeniyle değiştirilebilir.
+//
+// Güvenlik:
+//  - Sadece giriş yapmış kullanıcı çağırabilir (anon key tek başına yetmez)
+//  - Görsel boyutu / mime / kategori sayısı sınırlı
+//  - Kullanıcı başına dakikada en fazla RATE_MAX istek (isolate başına, best-effort)
 // ============================================================
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.5-flash-lite';
+
+const MAX_BASE64_CHARS = 7_000_000; // ≈ 5 MB görsel
+const MAX_CATEGORIES = 50;
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 10;
+const rateHits = new Map<string, number[]>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const recent = (rateHits.get(userId) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (recent.length >= RATE_MAX) {
+    rateHits.set(userId, recent);
+    return true;
+  }
+  recent.push(now);
+  rateHits.set(userId, recent);
+  return false;
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+// Prompt'a giren kategori adlarından satır sonu / tırnak vb. temizle (prompt injection azaltma)
+function sanitizeCategories(input: unknown): CategoryInput[] {
+  if (!Array.isArray(input)) return [];
+  const out: CategoryInput[] = [];
+  for (const c of input.slice(0, MAX_CATEGORIES)) {
+    if (!c || typeof c.id !== 'string' || !UUID_RE.test(c.id)) continue;
+    if (typeof c.name !== 'string') continue;
+    const name = c.name.replace(/[\r\n"\\]/g, ' ').trim().slice(0, 40);
+    if (!name) continue;
+    out.push({ id: c.id, name });
+  }
+  return out;
+}
 
 type CategoryInput = {
   id: string;
@@ -89,11 +138,11 @@ async function callGemini(
     },
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(body),
   });
 
@@ -154,31 +203,51 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // 1) Kimlik doğrulama: anon key değil, kullanıcının access token'ı gerekli
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    if (!token) return json({ error: 'unauthorized' }, 401);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return json({ error: 'server_misconfigured' }, 500);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+    if (userErr || !userData?.user) return json({ error: 'unauthorized' }, 401);
+
+    // 2) Oran sınırı
+    if (isRateLimited(userData.user.id)) {
+      return json({ error: 'rate_limited' }, 429);
+    }
+
+    // 3) Gövde boyutu (okumadan önce)
+    const contentLength = Number(req.headers.get('content-length') ?? '0');
+    if (contentLength > MAX_BASE64_CHARS + 100_000) {
+      return json({ error: 'payload_too_large' }, 413);
+    }
+
     const apiKey = Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: 'GEMINI_API_KEY sunucuda tanımlı değil.' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return json({ error: 'server_misconfigured' }, 500);
     }
 
     const body: ParseRequest = await req.json();
 
     if (!body?.image_base64 || typeof body.image_base64 !== 'string') {
-      return new Response(
-        JSON.stringify({ error: 'image_base64 gerekli.' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return json({ error: 'image_base64 gerekli.' }, 400);
+    }
+    if (body.image_base64.length > MAX_BASE64_CHARS) {
+      return json({ error: 'payload_too_large' }, 413);
     }
 
     const mimeType = body.mime_type || 'image/jpeg';
-    const categories = Array.isArray(body.categories) ? body.categories : [];
+    if (!ALLOWED_MIME.has(mimeType)) {
+      return json({ error: 'unsupported_mime_type' }, 415);
+    }
+
+    const categories = sanitizeCategories(body.categories);
 
     // Boş yanıt şablonu
     const empty: ParseResponse = {
@@ -189,31 +258,15 @@ Deno.serve(async (req: Request) => {
     };
 
     try {
-      const result = await callGemini(
-        apiKey,
-        body.image_base64,
-        mimeType,
-        categories
-      );
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const result = await callGemini(apiKey, body.image_base64, mimeType, categories);
+      return json(result);
     } catch (err) {
       // Gemini hatası → boş dön, 200 ile (kullanıcı manuel doldursun)
       console.error('[parse-receipt] Gemini error:', String(err));
-      return new Response(JSON.stringify(empty), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json(empty);
     }
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: 'internal_error', message: String(err) }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('[parse-receipt] internal error:', String(err));
+    return json({ error: 'internal_error' }, 500);
   }
 });

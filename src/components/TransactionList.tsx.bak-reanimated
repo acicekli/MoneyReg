@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { formatCurrency, formatExpenseAmount, formatAmount as fmtAmount, formatPercent } from '../lib/format';
 import {
   Pressable,
@@ -6,10 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
-import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { Swipeable, RectButton } from 'react-native-gesture-handler';
 import { transactionAmountInTRY, type Transaction } from '../types/models';
 import { fonts, radius, spacing, useThemedStyles, type ThemeColors } from '../theme';
 
@@ -56,7 +53,7 @@ export default function TransactionList({
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   // Aynı anda tek Swipeable açık olsun
-  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const openRowRef = useRef<Swipeable | null>(null);
 
   if (transactions.length === 0) {
     return (
@@ -82,8 +79,7 @@ export default function TransactionList({
             swipeEnabled={!!swipeEnabled}
             onEdit={onEdit}
             onDelete={onDelete}
-            openRowId={openRowId}
-            setOpenRowId={setOpenRowId}
+            openRowRef={openRowRef}
             variant={variant}
           />
         );
@@ -102,8 +98,7 @@ type RowProps = {
   swipeEnabled: boolean;
   onEdit?: (t: TransactionListItem) => void;
   onDelete?: (t: TransactionListItem) => void;
-  openRowId: string | null;
-  setOpenRowId: (id: string | null) => void;
+  openRowRef: React.MutableRefObject<Swipeable | null>;
   variant: 'card' | 'flat';
 };
 
@@ -115,8 +110,7 @@ function TransactionRow({
   swipeEnabled,
   onEdit,
   onDelete,
-  openRowId,
-  setOpenRowId,
+  openRowRef,
   variant,
 }: RowProps) {
   const styles = useThemedStyles(makeStyles);
@@ -126,72 +120,46 @@ function TransactionRow({
   const headerText = showCategory ? t.category_name ?? 'Kategorisiz' : null;
   const hasReceipt = !!t.receipt_photo_url;
 
-  const swipeableRef = useRef<SwipeableMethods | null>(null);
+  const swipeableRef = useRef<Swipeable | null>(null);
 
-  const isFlat = variant === 'flat';
-
-  // Tap handler — JS thread (worklet değil)
-  const handleTap = useCallback(() => {
-    // Herhangi bir menü açıksa → sadece kapat (detay açma)
-    if (openRowId !== null) {
-      setOpenRowId(null);
-      swipeableRef.current?.close();
-      return;
+  const handlePress = useCallback(() => {
+    // Eğer başka bir satır açıksa önce onu kapat
+    if (openRowRef.current && openRowRef.current !== swipeableRef.current) {
+      openRowRef.current.close();
+      openRowRef.current = null;
     }
-    // Hiç menü açık değilse → detay aç
     onPress?.(t);
-  }, [openRowId, t.id, onPress, setOpenRowId]);
-
-  // Tap gesture — worklet + runOnJS
-  const tapGesture = Gesture.Tap()
-    .maxDuration(250)
-    .maxDistance(10)
-    .onEnd((_event, success) => {
-      if (success) {
-        runOnJS(handleTap)();
-      }
-    });
-
-  // Başka satır açıkken bu satır anında kapanmalı
-  useEffect(() => {
-    console.log('[useEffect] t.id:', t.id.slice(0, 8), 'openRowId:', openRowId?.slice(0, 8) ?? 'null', 'hasRef:', !!swipeableRef.current);
-    if (openRowId !== t.id && swipeableRef.current) {
-      console.log('[useEffect] closing row', t.id.slice(0, 8));
-      swipeableRef.current.close();
-    }
-  }, [openRowId, t.id]);
-
-  // JS thread handlers
-  const handleEdit = useCallback(() => {
-    swipeableRef.current?.close();
-    setOpenRowId(null);
-    onEdit?.(t);
-  }, [t, onEdit, setOpenRowId]);
-
-  const handleDelete = useCallback(() => {
-    swipeableRef.current?.close();
-    setOpenRowId(null);
-    onDelete?.(t);
-  }, [t, onDelete, setOpenRowId]);
+  }, [onPress, t, openRowRef]);
 
   const renderRightActions = useCallback(() => {
     return (
       <View style={styles.actionsWrap}>
-        <Pressable
+        <RectButton
           style={[styles.actionBtn, styles.editBtn]}
-          onPress={handleEdit}
+          onPress={() => {
+            // Swipe'ı kapat
+            swipeableRef.current?.close();
+            openRowRef.current = null;
+            onEdit?.(t);
+          }}
         >
           <Text style={styles.actionBtnText}>Düzenle</Text>
-        </Pressable>
-        <Pressable
+        </RectButton>
+        <RectButton
           style={[styles.actionBtn, styles.deleteBtn]}
-          onPress={handleDelete}
+          onPress={() => {
+            swipeableRef.current?.close();
+            openRowRef.current = null;
+            onDelete?.(t);
+          }}
         >
           <Text style={styles.actionBtnText}>Sil</Text>
-        </Pressable>
+        </RectButton>
       </View>
     );
-  }, [handleEdit, handleDelete]);
+  }, [t, onEdit, onDelete, openRowRef]);
+
+  const isFlat = variant === 'flat';
 
   const rowContent = (
     <View style={isFlat ? styles.txRowFlat : styles.txRow}>
@@ -238,32 +206,35 @@ function TransactionRow({
 
   if (!swipeEnabled) {
     return (
-      <GestureDetector gesture={tapGesture}>
-        <View style={isFlat ? undefined : { marginBottom: spacing.sm }}>
-          {rowContent}
-        </View>
-      </GestureDetector>
+      <Pressable
+        onPress={handlePress}
+        style={isFlat ? undefined : { marginBottom: spacing.sm }}
+      >
+        {rowContent}
+      </Pressable>
     );
   }
 
   return (
-    <GestureDetector gesture={tapGesture}>
-      <ReanimatedSwipeable
-        ref={(ref) => { swipeableRef.current = ref; }}
-        renderRightActions={renderRightActions}
-        overshootRight={false}
-        onSwipeableWillOpen={() => {
-          setOpenRowId(t.id);
-        }}
-        onSwipeableWillClose={() => {
-          if (openRowId === t.id) {
-            setOpenRowId(null);
-          }
-        }}
-      >
-        <View>{rowContent}</View>
-      </ReanimatedSwipeable>
-    </GestureDetector>
+    <Swipeable
+      ref={(ref) => { swipeableRef.current = ref; }}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      onSwipeableWillOpen={() => {
+        // Başka bir satır açıksa kapat
+        if (openRowRef.current && openRowRef.current !== swipeableRef.current) {
+          openRowRef.current.close();
+        }
+        openRowRef.current = swipeableRef.current;
+      }}
+      onSwipeableClose={() => {
+        if (openRowRef.current === swipeableRef.current) {
+          openRowRef.current = null;
+        }
+      }}
+    >
+      <Pressable onPress={handlePress}>{rowContent}</Pressable>
+    </Swipeable>
   );
 }
 
@@ -287,7 +258,6 @@ const makeStyles = (colors: ThemeColors) =>
     paddingHorizontal: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
-    minHeight: 64,
   },
   txDot: {
     width: 8,

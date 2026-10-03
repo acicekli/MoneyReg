@@ -135,6 +135,7 @@ const TAG_MONTHLY = 'monthly-report';
 const TAG_YEARLY = 'yearly-report';
 
 export async function cancelAllReportNotifications(): Promise<void> {
+  if (Platform.OS === 'web') return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 

@@ -80,7 +80,7 @@ export async function getAvailableCategories(userId: string): Promise<Category[]
 
 export type CreateTransactionResult =
   | { ok: true; transaction: Transaction }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code?: string };
 
 /**
  * Yeni harcama kaydı.
@@ -92,13 +92,13 @@ export async function createTransaction(
 ): Promise<CreateTransactionResult> {
   // Basit doğrulama
   if (!input.amount || input.amount <= 0) {
-    return { ok: false, error: 'Tutar 0’dan büyük olmalı.' };
+    return { ok: false, error: 'Tutar 0’dan büyük olmalı.', code: 'validation' };
   }
   if (!input.space_id) {
-    return { ok: false, error: 'Alan seçilmedi.' };
+    return { ok: false, error: 'Alan seçilmedi.', code: 'validation' };
   }
   if (!input.category_id) {
-    return { ok: false, error: 'Kategori seçilmedi.' };
+    return { ok: false, error: 'Kategori seçilmedi.', code: 'validation' };
   }
   if (input.currency !== 'TRY') {
     if (
@@ -106,11 +106,13 @@ export async function createTransaction(
       !Number.isFinite(input.exchange_rate_snapshot) ||
       input.exchange_rate_snapshot <= 0
     ) {
-      return { ok: false, error: 'Kur bilgisi geçersiz.' };
+      return { ok: false, error: 'Kur bilgisi geçersiz.', code: 'validation' };
     }
   }
 
   const payload = {
+    // Offline kuyruktan gelen client id → tekrar denemede çift kayıt olmaz
+    ...(input.id ? { id: input.id } : {}),
     space_id: input.space_id,
     created_by: userId,
     amount: input.amount,
@@ -130,7 +132,7 @@ export async function createTransaction(
     .single();
 
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: error.message, code: error.code || undefined };
   }
 
   return { ok: true, transaction: data as Transaction };
@@ -165,7 +167,7 @@ export async function getTransactionById(
 
 export type UpdateTransactionResult =
   | { ok: true; transaction: Transaction }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code?: string };
 
 /**
  * Transaction'ı güncelle.
@@ -178,13 +180,13 @@ export async function updateTransaction(
   input: NewTransactionInput
 ): Promise<UpdateTransactionResult> {
   if (!input.amount || input.amount <= 0) {
-    return { ok: false, error: 'Tutar 0’dan büyük olmalı.' };
+    return { ok: false, error: 'Tutar 0’dan büyük olmalı.', code: 'validation' };
   }
   if (!input.category_id) {
-    return { ok: false, error: 'Kategori seçilmedi.' };
+    return { ok: false, error: 'Kategori seçilmedi.', code: 'validation' };
   }
   if (!input.space_id) {
-    return { ok: false, error: 'Alan seçilmedi.' };
+    return { ok: false, error: 'Alan seçilmedi.', code: 'validation' };
   }
 
   const payload = {
@@ -208,7 +210,11 @@ export async function updateTransaction(
     .single();
 
   if (error || !data) {
-    return { ok: false, error: error?.message ?? 'Güncellenemedi.' };
+    return {
+      ok: false,
+      error: error?.message ?? 'Güncellenemedi.',
+      code: error?.code || undefined,
+    };
   }
 
   return { ok: true, transaction: data as Transaction };
@@ -216,7 +222,7 @@ export async function updateTransaction(
 
 export type DeleteTransactionResult =
   | { ok: true }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code?: string };
 
 /**
  * Transaction'ı sil.
@@ -228,7 +234,7 @@ export async function deleteTransaction(
   transactionId: string
 ): Promise<DeleteTransactionResult> {
   // 1) Önce transaction'ı çek (fiş path'i için)
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from('transactions')
     .select('id, created_by, receipt_photo_url')
     .eq('id', transactionId)
@@ -236,19 +242,22 @@ export async function deleteTransaction(
     .single();
 
   if (!existing) {
-    return { ok: false, error: 'Kayıt bulunamadı veya yetkiniz yok.' };
-  }
-
-  // 2) Fiş varsa Storage'dan sil
-  if (existing.receipt_photo_url) {
-    try {
-      await deleteReceipt(existing.receipt_photo_url);
-    } catch {
-      // Storage silme başarısız olsa bile transaction silinsin
+    // PGRST116 = satır yok; başka hata (ağ vb.) "bulunamadı" sayılmamalı
+    if (selectError && selectError.code !== 'PGRST116') {
+      return {
+        ok: false,
+        error: selectError.message,
+        code: selectError.code || undefined,
+      };
     }
+    return {
+      ok: false,
+      error: 'Kayıt bulunamadı veya yetkiniz yok.',
+      code: 'not_found',
+    };
   }
 
-  // 3) Transaction'ı sil
+  // 2) Önce transaction'ı sil (başarısız olursa fiş de yerinde kalsın)
   const { error } = await supabase
     .from('transactions')
     .delete()
@@ -256,7 +265,16 @@ export async function deleteTransaction(
     .eq('created_by', userId);
 
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: error.message, code: error.code || undefined };
+  }
+
+  // 3) Fiş varsa Storage'dan sil (başarısız olsa bile kayıt silinmiş kalır)
+  if (existing.receipt_photo_url) {
+    try {
+      await deleteReceipt(existing.receipt_photo_url);
+    } catch {
+      // sessiz
+    }
   }
 
   return { ok: true };

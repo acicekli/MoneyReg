@@ -1,9 +1,8 @@
 import 'react-native-gesture-handler';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ActivityIndicator, Alert, Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import {
   useFonts,
   Fraunces_400Regular,
@@ -23,15 +22,12 @@ import {
   setupNotificationResponseHandler,
 } from './src/lib/notifications';
 import OfflineBanner from './src/components/OfflineBanner';
-import ErrorBoundary from './src/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from './src/theme';
 
 // ---------- Bildirim bootstrap ----------
 
 function NotificationBootstrap() {
   const { user } = useAuth();
-  // Token yenilenince user nesnesi değişir; sadece id değişince çalış
-  const userId = user?.id ?? null;
   const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -40,14 +36,14 @@ function NotificationBootstrap() {
   }, []);
 
   useEffect(() => {
-    if (!userId) {
+    if (!user) {
       lastUserIdRef.current = null;
       return;
     }
     if (Platform.OS === 'web') return;
-    lastUserIdRef.current = userId;
-    rescheduleAllNotifications(userId);
-  }, [userId]);
+    lastUserIdRef.current = user.id;
+    rescheduleAllNotifications(user.id);
+  }, [user]);
 
   return null;
 }
@@ -56,38 +52,20 @@ function NotificationBootstrap() {
 
 function SyncOnOnline() {
   const { user } = useAuth();
-  const userId = user?.id ?? null;
   const { isOnline } = useNetworkStatus();
   const prevOnlineRef = useRef<boolean>(false);
-  const lastUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const wasOnline = prevOnlineRef.current;
-    prevOnlineRef.current = isOnline;
-
-    if (!userId) {
-      lastUserRef.current = null;
-      return;
-    }
-
-    // Offline → online geçişinde VEYA online iken yeni giriş yapılınca senkronize et
-    const userChanged = lastUserRef.current !== userId;
-    lastUserRef.current = userId;
-
-    if (isOnline && (!wasOnline || userChanged)) {
-      processQueue(userId).then((result) => {
+    if (!user) return;
+    if (isOnline && !prevOnlineRef.current) {
+      processQueue(user.id).then((result) => {
         if (result.processed > 0) {
           console.log(`[sync] ${result.processed} işlem senkronize edildi.`);
         }
-        if (result.dropped > 0) {
-          Alert.alert(
-            'Senkronizasyon',
-            `${result.dropped} işlem sunucuya kaydedilemedi. Lütfen kayıtlarınızı kontrol edin.`
-          );
-        }
       });
     }
-  }, [isOnline, userId]);
+    prevOnlineRef.current = isOnline;
+  }, [isOnline, user]);
 
   return null;
 }
@@ -115,7 +93,7 @@ function LoadingScreen() {
 
 function AppBody() {
   const { isDark } = useTheme();
-  const [fontsLoaded, fontError] = useFonts({
+  const [fontsLoaded] = useFonts({
     Fraunces_400Regular,
     Fraunces_700Bold,
     IBMPlexSans_400Regular,
@@ -123,8 +101,7 @@ function AppBody() {
     IBMPlexSans_600SemiBold,
   });
 
-  // Font yüklenemezse (hata) sistem fontuyla devam et; sonsuz spinner olmasın
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded) {
     return <LoadingScreen />;
   }
 
@@ -147,12 +124,8 @@ function AppBody() {
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        <ThemeProvider>
-          <AppBody />
-        </ThemeProvider>
-      </ErrorBoundary>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <AppBody />
+    </ThemeProvider>
   );
 }

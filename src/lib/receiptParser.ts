@@ -3,6 +3,7 @@
 // ============================================================
 
 import Constants from 'expo-constants';
+import { supabase } from './supabase';
 import type { Category } from '../types/models';
 
 export type ParseReceiptResult = {
@@ -62,7 +63,11 @@ export async function parseReceipt(
 
     if (!base64) return empty;
 
-    // 2) Edge Function'a gönder
+    // 2) Edge Function'a gönder (giriş yapmış kullanıcının token'ıyla)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) return empty;
+
     const fnUrl = getFunctionUrl();
     const anonKey = getAnonKey();
 
@@ -70,7 +75,7 @@ export async function parseReceipt(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${anonKey}`,
+        'Authorization': `Bearer ${accessToken}`,
         'apikey': anonKey,
       },
       body: JSON.stringify({

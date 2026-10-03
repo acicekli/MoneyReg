@@ -23,12 +23,10 @@ import { useNetworkStatus } from '../lib/networkContext';
 import { getCached, setCached, CacheKeys } from '../lib/localCache';
 import { onSyncComplete } from '../lib/syncEvents';
 import { useOnlineGuard } from '../lib/onlineGuard';
-import { enqueue } from '../lib/offlineQueue';
 import {
   closeSpace,
   getSpaceDetail,
   type SpaceDetail,
-  type TransactionWithPayer,
 } from '../lib/groupDetailQueries';
 import { supabase } from '../lib/supabase';
 import { deleteTransaction } from '../lib/transactionQueries';
@@ -64,7 +62,7 @@ export default function GroupDetailScreen() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [deletedTxs, setDeletedTxs] = useState<TransactionListItem[]>([]);
+  const [deletedTx, setDeletedTx] = useState<Transaction | null>(null);
   const [selectedTx, setSelectedTx] = useState<TransactionListItem | null>(null);
 
   const load = useCallback(async () => {
@@ -290,8 +288,7 @@ export default function GroupDetailScreen() {
               ...detail,
               transactions: detail.transactions.filter((x) => x.id !== t.id),
             });
-            // Kuyruğa ekle
-            setDeletedTxs((prev) => [...prev, t]);
+            setDeletedTx(t);
           }}
         />
 
@@ -390,41 +387,26 @@ export default function GroupDetailScreen() {
       />
 
       <UndoToast
-        visible={deletedTxs.length > 0}
-        message={
-          deletedTxs.length > 1
-            ? `${deletedTxs.length} harcama silindi`
-            : 'Harcama silindi'
-        }
-        bottomOffset={100}
+        visible={!!deletedTx}
+        message="Harcama silindi"
         onUndo={() => {
-          const last = deletedTxs[deletedTxs.length - 1];
-          if (last && detail) {
-            setDetail({
-              ...detail,
-              transactions: [last as TransactionWithPayer, ...detail.transactions],
-            });
-            setDeletedTxs((prev) => prev.slice(0, -1));
+          if (deletedTx) {
+            // Listeye geri ekle
+            setDetail((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    transactions: [deletedTx as any, ...prev.transactions],
+                  }
+                : prev
+            );
+            setDeletedTx(null);
           }
         }}
         onExpire={async () => {
-          if (deletedTxs.length === 0 || !user) return;
-          console.log('[onExpire] deleting', deletedTxs.length, 'txs');
-          try {
-            for (const tx of deletedTxs) {
-              console.log('[onExpire] delete', tx.id.slice(0, 8), 'online:', isOnline);
-              if (isOnline) {
-                await deleteTransaction(user.id, tx.id);
-              } else {
-                await enqueue('delete_transaction', {
-                  transactionId: tx.id,
-                });
-              }
-            }
-          } catch (e) {
-            console.error('[onExpire] error:', e);
-          } finally {
-            setDeletedTxs([]);
+          if (deletedTx && user) {
+            await deleteTransaction(user.id, deletedTx.id);
+            setDeletedTx(null);
             load();
           }
         }}
@@ -450,7 +432,31 @@ export default function GroupDetailScreen() {
 
       />
 
-
+      <UndoToast
+        visible={!!deletedTx}
+        message="Harcama silindi"
+        onUndo={() => {
+          if (deletedTx) {
+            // Listeye geri ekle
+            setDetail((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    transactions: [deletedTx as any, ...prev.transactions],
+                  }
+                : prev
+            );
+            setDeletedTx(null);
+          }
+        }}
+        onExpire={async () => {
+          if (deletedTx && user) {
+            await deleteTransaction(user.id, deletedTx.id);
+            setDeletedTx(null);
+            load();
+          }
+        }}
+      />
     </View>
   );
 }
