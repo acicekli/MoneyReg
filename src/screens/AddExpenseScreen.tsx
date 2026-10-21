@@ -18,6 +18,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import { useAuth } from '../lib/auth-context';
 import { getExchangeRateForDate } from '../lib/exchangeRate';
@@ -328,6 +329,20 @@ export default function AddExpenseScreen() {
   }, [amountStr]);
 
   // ---------- Fiş işlemleri ----------
+  // Fotoğrafı yüklemeden önce küçült (boyut ve süre kazancı)
+  const compressImage = async (uri: string): Promise<string> => {
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      return result.uri;
+    } catch {
+      return uri; // hata olursa orijinali kullan
+    }
+  };
+
   const runParseReceipt = useCallback(
     async (uri: string) => {
       // Offline'da OCR çalışmaz, kullanıcı elle doldurur
@@ -365,8 +380,9 @@ export default function AddExpenseScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) {
         const uri = result.assets[0].uri;
-        setReceiptUri(uri);
-        runParseReceipt(uri);
+        const compressed = await compressImage(uri);
+        setReceiptUri(compressed);
+        runParseReceipt(compressed);
       }
     } catch (e: any) {
       Alert.alert('Hata', e?.message ?? 'Kamera açılamadı.');
@@ -387,8 +403,9 @@ export default function AddExpenseScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) {
         const uri = result.assets[0].uri;
-        setReceiptUri(uri);
-        runParseReceipt(uri);
+        const compressed = await compressImage(uri);
+        setReceiptUri(compressed);
+        runParseReceipt(compressed);
       }
     } catch (e: any) {
       Alert.alert('Hata', e?.message ?? 'Galeri açılamadı.');

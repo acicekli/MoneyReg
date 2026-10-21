@@ -5,6 +5,8 @@
 // ============================================================
 
 import { supabase } from './supabase';
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system';
 
 const BUCKET = 'receipts';
 
@@ -46,14 +48,16 @@ export async function uploadReceipt(
     const ext = uriToExt(localUri);
     const path = `${userId}/${Date.now()}_${randomSuffix()}.${ext}`;
 
-    // React Native'de fetch(uri) → Blob
-    const res = await fetch(localUri);
-    const blob = await res.blob();
+    // React Native'de Blob çalışmaz → base64 oku, ArrayBuffer'a çevir
+    const base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const arrayBuffer = decode(base64);
 
     // Supabase Storage'a yükle
     const { error } = await supabase.storage
       .from(BUCKET)
-      .upload(path, blob, {
+      .upload(path, arrayBuffer, {
         contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
         upsert: false,
       });
