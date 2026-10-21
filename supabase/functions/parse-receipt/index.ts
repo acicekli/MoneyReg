@@ -202,6 +202,20 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+
+  // Ping kontrolü (cold start önlemi için)
+  try {
+    const body = await req.clone().json();
+    if (body?.ping === true) {
+      return new Response(
+        JSON.stringify({ ok: true, message: 'pong' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch {
+    // JSON değilse devam et
+  }
+
   try {
     // 1) Kimlik doğrulama: anon key değil, kullanıcının access token'ı gerekli
     const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
