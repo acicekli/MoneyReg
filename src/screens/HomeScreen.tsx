@@ -18,8 +18,6 @@ import { onSyncComplete } from '../lib/syncEvents';
 import { getCurrentExchangeRate, type CurrencyCode } from '../lib/exchangeRate';
 import {
   getCategories,
-  getCurrentMonthStart,
-  getMonthlyTransactions,
   getPersonalSpaceId,
   getProfileDisplayName,
   getRecentTransactions,
@@ -54,7 +52,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [spaceId, setSpaceId] = useState<string | null>(null);
-  const [monthly, setMonthly] = useState<Transaction[]>([]);
   const [recent, setRecent] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [viewCurrency, setViewCurrency] = useState<ViewCurrency>('TRY');
@@ -68,10 +65,9 @@ export default function HomeScreen() {
     if (!user) return;
 
     // 1) Cache'ten oku — varsa hemen göster
-    const [cachedRecent, cachedMonthly, cachedName, cachedSpaceId, cachedCats] =
+    const [cachedRecent, cachedName, cachedSpaceId, cachedCats] =
       await Promise.all([
         getCached<Transaction[]>(CacheKeys.homeTransactions),
-        getCached<Transaction[]>(CacheKeys.homeMonthly),
         getCached<string>(CacheKeys.homeDisplayName),
         getCached<string>(CacheKeys.homeDisplayName + ':spaceId'),
         getCached<Category[]>(CacheKeys.categories),
@@ -81,11 +77,9 @@ export default function HomeScreen() {
     if (cachedSpaceId) setSpaceId(cachedSpaceId);
     if (cachedCats) setCategories(cachedCats);
     if (cachedRecent) setRecent(cachedRecent);
-    if (cachedMonthly) setMonthly(cachedMonthly);
 
     // Cache'ten bir şey geldiyse loading'i kapat (stale göster)
-    const hasCache =
-      cachedRecent !== null || cachedMonthly !== null || cachedCats !== null;
+    const hasCache = cachedRecent !== null || cachedCats !== null;
     if (hasCache) setLoading(false);
 
     // 2) Offline ise cache ile kal + kuyruktaki pending harcamaları göster
@@ -149,19 +143,10 @@ export default function HomeScreen() {
       ]);
 
       if (sid) {
-        const monthStart = getCurrentMonthStart();
-        const [monthlyData, recentData] = await Promise.all([
-          getMonthlyTransactions(sid, monthStart),
-          getRecentTransactions(sid, 15),
-        ]);
-        setMonthly(monthlyData);
+        const recentData = await getRecentTransactions(sid, 12);
         setRecent(recentData);
-        await Promise.all([
-          setCached(CacheKeys.homeMonthly, monthlyData),
-          setCached(CacheKeys.homeTransactions, recentData),
-        ]);
+        await setCached(CacheKeys.homeTransactions, recentData);
       } else {
-        setMonthly([]);
         setRecent([]);
       }
     } finally {
@@ -210,9 +195,9 @@ export default function HomeScreen() {
 
   const totalTRY = useMemo(() => {
     let sum = 0;
-    for (const t of monthly) sum += transactionAmountInTRY(t);
+    for (const t of recent) sum += transactionAmountInTRY(t);
     return sum;
-  }, [monthly]);
+  }, [recent]);
 
   const displayTotal = useMemo<{ value: number; symbol: string }>(() => {
     if (viewCurrency === 'TRY') return { value: totalTRY, symbol: '₺' };
@@ -383,7 +368,7 @@ export default function HomeScreen() {
     );
   }
 
-  const hasData = monthly.length > 0;
+  const hasData = recent.length > 0;
 
 
   return (
@@ -393,7 +378,7 @@ export default function HomeScreen() {
         <Text style={styles.greeting}>
           Merhaba{displayName ? `, ${displayName}` : ''}
         </Text>
-        <Text style={styles.subtitle}>Bu ayki toplam harcaman</Text>
+        <Text style={styles.subtitle}>Son 12 harcamanın toplamı</Text>
       </View>
 
       <View style={styles.totalCard}>
@@ -451,7 +436,6 @@ export default function HomeScreen() {
               onDelete={(t) => {
                 // Optimistic: listeden hemen çıkar
                 setRecent((prev) => prev.filter((x) => x.id !== t.id));
-                setMonthly((prev) => prev.filter((x) => x.id !== t.id));
                 // Kuyruğa ekle (birden fazla silme desteklensin)
                 setDeletedTxs((prev) => [...prev, t]);
               }}
@@ -499,7 +483,6 @@ export default function HomeScreen() {
           const last = deletedTxs[deletedTxs.length - 1];
           if (last) {
             setRecent((prev) => [last, ...prev]);
-            setMonthly((prev) => [last, ...prev]);
             setDeletedTxs((prev) => prev.slice(0, -1));
           }
         }}

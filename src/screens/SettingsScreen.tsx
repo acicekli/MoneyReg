@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -41,7 +42,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
   const navigation = useNavigation<Nav>();
   const { colors, mode, setMode } = useTheme();
 
@@ -58,6 +59,7 @@ export default function SettingsScreen() {
   // ---------- Geri bildirim ----------
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // ---------- Admin ----------
   const [isAdmin, setIsAdmin] = useState(false);
@@ -84,6 +86,49 @@ export default function SettingsScreen() {
   );
 
   const { isOnline } = useNetworkStatus();
+
+  // ============================================================
+  // HESAP SİLME — 2 adımlı Alert onayı
+  // ============================================================
+  const handleDeleteAccount = useCallback(() => {
+    if (!user || deleting) return;
+
+    Alert.alert(
+      'Hesabını silmek istediğine emin misin?',
+      'Tüm harcamaların, grupların, kategorilerin ve fişlerin kalıcı olarak silinecek.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Devam Et',
+          style: 'destructive',
+          onPress: () => {
+            // 2. onay
+            Alert.alert(
+              'Bu işlem geri alınamaz.',
+              'Hesabını kalıcı olarak silmek üzeresin. Onaylıyor musun?',
+              [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                  text: 'Sil',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setDeleting(true);
+                    const result = await deleteAccount();
+                    setDeleting(false);
+
+                    if (result.error) {
+                      Alert.alert('Silinemedi', result.error);
+                    }
+                    // Başarılıysa auth state değişir, RootNavigator login'e döner
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [user, deleting, deleteAccount]);
 
   const handleFeedbackSubmit = useCallback(
     async (
@@ -236,6 +281,23 @@ export default function SettingsScreen() {
         logoutBtnText: {
           color: colors.accentInk,
           fontSize: 16,
+          fontFamily: fonts.body,
+        },
+
+        deleteBtn: {
+          backgroundColor: 'transparent',
+          borderRadius: radius.md,
+          borderWidth: 1,
+          borderColor: colors.expense,
+          paddingVertical: spacing.md,
+          alignItems: 'center',
+          marginTop: spacing.sm,
+          marginBottom: spacing.lg,
+        },
+        deleteBtnText: {
+          color: colors.expense,
+          fontSize: 15,
+          fontWeight: '600',
           fontFamily: fonts.body,
         },
       }),
@@ -426,6 +488,19 @@ export default function SettingsScreen() {
         {/* Çıkış */}
         <Pressable style={styles.logoutBtn} onPress={signOut}>
           <Text style={styles.logoutBtnText}>Çıkış Yap</Text>
+        </Pressable>
+
+        {/* Hesabı Sil */}
+        <Pressable
+          style={styles.deleteBtn}
+          onPress={handleDeleteAccount}
+          disabled={deleting}
+        >
+          {deleting ? (
+            <ActivityIndicator color={colors.expense} />
+          ) : (
+            <Text style={styles.deleteBtnText}>Hesabı Sil</Text>
+          )}
         </Pressable>
       </ScrollView>
 
