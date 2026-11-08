@@ -15,8 +15,9 @@ import { deleteTransaction } from '../lib/transactionQueries';
 import { enqueue } from '../lib/offlineQueue';
 import { useNetworkStatus } from '../lib/networkContext';
 import { getCached, setCached, CacheKeys } from '../lib/localCache';
-import { getAllTransactions, type TransactionPeriod, type TransactionScope } from '../lib/homeQueries';
+import { getAllTransactions, type TransactionScope } from '../lib/homeQueries';
 import { getUserSpaces } from '../lib/transactionQueries';
+import { getMonthStartDaySetting } from '../lib/reportsQueries';
 import { getSpaceMembers, type SpaceMemberInfo } from '../lib/groupQueries';
 import { transactionAmountInTRY, type Category, type Space, type Transaction } from '../types/models';
 import TransactionList, { type TransactionListItem } from '../components/TransactionList';
@@ -28,11 +29,22 @@ import type { HomeStackParamList } from '../navigation/types';
 type RouteT = RouteProp<HomeStackParamList, 'AllTransactions'>;
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'AllTransactions'>;
 
-const PERIOD_OPTIONS: { value: TransactionPeriod; label: string }[] = [
-  { value: 'all', label: 'Tüm' },
+type TimeFilter = 'this_period' | 'last_period' | '1m' | '6m' | '1y' | 'all';
+type ListFilter = 'all' | 'past' | 'future';
+
+const PERIOD_OPTIONS: { value: TimeFilter; label: string }[] = [
+  { value: 'this_period', label: 'Bu Dönem' },
+  { value: 'last_period', label: 'Geçen Dönem' },
   { value: '1m', label: 'Son 1 Ay' },
-  { value: '3m', label: 'Son 3 Ay' },
+  { value: '6m', label: 'Son 6 Ay' },
   { value: '1y', label: 'Son 1 Yıl' },
+  { value: 'all', label: 'Tüm Zamanlar' },
+];
+
+const LIST_OPTIONS: { value: ListFilter; label: string }[] = [
+  { value: 'past', label: 'Geçmiş' },
+  { value: 'future', label: 'Gelecek' },
+  { value: 'all', label: 'Tümü' },
 ];
 
 const SCOPE_OPTIONS: { value: TransactionScope; label: string }[] = [
@@ -48,14 +60,44 @@ function findLabel<T extends string>(
   return options.find((o) => o.value === value)?.label ?? '';
 }
 
-function getCutoffDate(period: TransactionPeriod): string | null {
-  if (period === 'all') return null;
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getEffectiveDay(year: number, month: number, day: number): number {
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  return Math.min(day, lastDayOfMonth);
+}
+
+// Belirtilen ay başı gününe göre mevcut periyodun başlangıcını bulur
+function getStartOfCurrentPeriod(monthStartDay: number): Date {
   const now = new Date();
-  const d = new Date(now);
-  if (period === '1m') d.setMonth(d.getMonth() - 1);
-  else if (period === '3m') d.setMonth(d.getMonth() - 3);
-  else if (period === '1y') d.setFullYear(d.getFullYear() - 1);
-  return d.toISOString().slice(0, 10);
+  const thisEff = getEffectiveDay(now.getFullYear(), now.getMonth(), monthStartDay);
+  if (now.getDate() >= thisEff) {
+    return new Date(now.getFullYear(), now.getMonth(), thisEff);
+  } else {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevEff = getEffectiveDay(prev.getFullYear(), prev.getMonth(), monthStartDay);
+    return new Date(prev.getFullYear(), prev.getMonth(), prevEff);
+  }
+}
+
+// Mevcut periyodun başlangıcından 1 gün öncesi (Geçen dönemin bitişi)
+function getEndOfLastPeriod(startOfCurrent: Date): Date {
+  const d = new Date(startOfCurrent);
+  d.setDate(d.getDate() - 1);
+  return d;
+}
+
+// Geçen dönemin başlangıcı
+function getStartOfLastPeriod(monthStartDay: number): Date {
+  const currentStart = getStartOfCurrentPeriod(monthStartDay);
+  const prev = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
+  const prevEff = getEffectiveDay(prev.getFullYear(), prev.getMonth(), monthStartDay);
+  return new Date(prev.getFullYear(), prev.getMonth(), prevEff);
 }
 
 export default function AllTransactionsModal() {
@@ -69,8 +111,10 @@ export default function AllTransactionsModal() {
   const initialSpaceId = route.params?.spaceId;
   const isGroupMode = !!initialSpaceId;
 
-  const [period, setPeriod] = useState<TransactionPeriod>('all');
+  const [listFilter, setListFilter] = useState<ListFilter>('past');
+  const [period, setPeriod] = useState<TimeFilter>('this_period');
   const [scope, setScope] = useState<TransactionScope>('all');
+  const [monthStartDay, setMonthStartDay] = useState(1);
 
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [members, setMembers] = useState<SpaceMemberInfo[]>([]);
@@ -85,6 +129,12 @@ export default function AllTransactionsModal() {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+
+  // Ay başı gününü al (Bu Dönem/Geçen Dönem için)
+  useEffect(() => {
+    if (!user) return;
+    getMonthStartDaySetting(user.id).then(setMonthStartDay);
+  }, [user]);
 
   // Kategorileri cache'ten al
   useEffect(() => {
@@ -191,10 +241,42 @@ export default function AllTransactionsModal() {
       // scope === 'all' → hepsi
     }
 
-    // 3) Period filtresi
-    const cutoff = getCutoffDate(period);
-    if (cutoff) {
-      result = result.filter((t) => t.expense_date >= cutoff);
+    // 3) Zaman Filtresi (Bu Dönem, Geçen Dönem, vs.)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = toISODate(today);
+
+    // Gelecek veya Tümü seçiliyse zaman filtresini uygulama
+    const effectivePeriod = (listFilter === 'future' || listFilter === 'all') ? 'all' : period;
+
+    if (effectivePeriod === 'this_period') {
+      const start = getStartOfCurrentPeriod(monthStartDay);
+      const startISO = toISODate(start);
+      result = result.filter((t) => t.expense_date >= startISO && t.expense_date <= todayISO);
+    } else if (effectivePeriod === 'last_period') {
+      const currentStart = getStartOfCurrentPeriod(monthStartDay);
+      const lastStart = getStartOfLastPeriod(monthStartDay);
+      const lastEnd = getEndOfLastPeriod(currentStart);
+      const lastStartISO = toISODate(lastStart);
+      const lastEndISO = toISODate(lastEnd);
+      result = result.filter((t) => t.expense_date >= lastStartISO && t.expense_date <= lastEndISO);
+    } else if (effectivePeriod === '1m') {
+      const d = new Date(today); d.setMonth(d.getMonth() - 1);
+      result = result.filter((t) => t.expense_date >= toISODate(d) && t.expense_date <= todayISO);
+    } else if (effectivePeriod === '6m') {
+      const d = new Date(today); d.setMonth(d.getMonth() - 6);
+      result = result.filter((t) => t.expense_date >= toISODate(d) && t.expense_date <= todayISO);
+    } else if (effectivePeriod === '1y') {
+      const d = new Date(today); d.setFullYear(d.getFullYear() - 1);
+      result = result.filter((t) => t.expense_date >= toISODate(d) && t.expense_date <= todayISO);
+    }
+    // period === 'all' ise dokunma
+
+    // 4) Geçmiş / Gelecek / Tümü Filtresi
+    if (listFilter === 'past') {
+      result = result.filter((t) => t.expense_date <= todayISO);
+    } else if (listFilter === 'future') {
+      result = result.filter((t) => t.expense_date > todayISO);
     }
 
     // 4) Member filtresi (grup modu)
@@ -203,7 +285,7 @@ export default function AllTransactionsModal() {
     }
 
     return result;
-  }, [allRaw, scope, period, memberIds, initialSpaceId, isGroupMode, spaceById]);
+  }, [allRaw, scope, period, listFilter, monthStartDay, memberIds, initialSpaceId, isGroupMode, spaceById]);
 
   // Görüntülenecek harcamalar (silinen hariç)
   const displayList = useMemo(() => {
@@ -259,13 +341,16 @@ export default function AllTransactionsModal() {
       {/* Dropdown butonları */}
       <View style={styles.dropdownRow}>
         <Pressable
-          style={styles.dropdownBtn}
+          style={[styles.dropdownBtn, (listFilter === 'future' || listFilter === 'all') && { opacity: 0.5 }]}
           onPress={() => setPeriodOpen(true)}
+          disabled={listFilter === 'future' || listFilter === 'all'}
         >
           <View style={styles.dropdownBtnInner}>
             <Text style={styles.dropdownLabel}>Zaman</Text>
             <Text style={styles.dropdownValue}>
-              {findLabel(PERIOD_OPTIONS, period)} ▾
+              {(listFilter === 'future' || listFilter === 'all') 
+                ? 'Tüm Zamanlar' 
+                : findLabel(PERIOD_OPTIONS, period)} ▾
             </Text>
           </View>
         </Pressable>
@@ -297,6 +382,34 @@ export default function AllTransactionsModal() {
             </View>
           </Pressable>
         )}
+      </View>
+
+      {/* Geçmiş / Gelecek / Tümü Butonları */}
+      <View style={styles.segmentContainer}>
+        {LIST_OPTIONS.map((opt) => {
+          const active = listFilter === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+              onPress={() => {
+                setListFilter(opt.value);
+                // Geçmiş seçilirse varsayılan olarak Bu Dönem gelsin
+                if (opt.value === 'past') {
+                  setPeriod('this_period');
+                } 
+                // Gelecek veya Tümü seçilirse zaman filtresi kapansın (Tüm Zamanlar)
+                else {
+                  setPeriod('all');
+                }
+              }}
+            >
+              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Toplam */}
@@ -542,6 +655,32 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
 
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: radius.sm,
+  },
+  segmentBtnActive: {
+    backgroundColor: colors.accent,
+  },
+  segmentText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontFamily: fonts.bodyMedium,
+  },
+  segmentTextActive: {
+    color: colors.accentInk,
+    fontFamily: fonts.bodyBold,
+  },
   dropdownRow: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
