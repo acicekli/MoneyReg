@@ -62,31 +62,28 @@ export async function getSharedSpacesWithMeta(
     totals.set(t.space_id, (totals.get(t.space_id) ?? 0) + tryValue);
   }
 
-  const { data: memRows, error: memErr } = await supabase
-    .from('space_members')
-    .select(`
-      space_id,
-      user_id,
-      profile:profiles ( display_name )
-    `)
-    .in('space_id', spaceIds);
-
-  if (memErr) {
-    console.warn('getSharedSpacesWithMeta memErr:', memErr.message);
-  }
-
+  // Her grup için RPC çağırıp baş harfleri topla
   const membersBySpace = new Map<string, string[]>();
-  for (const row of (memRows ?? []) as any[]) {
-    const sid: string = row.space_id;
-    const profile = Array.isArray(row.profile) ? row.profile[0] : row.profile;
-    const name: string | null = profile?.display_name ?? null;
-    const initial = name && name.trim().length > 0
-      ? name.trim().charAt(0).toLocaleUpperCase('tr-TR')
-      : '?';
-    const arr = membersBySpace.get(sid) ?? [];
-    arr.push(initial);
-    membersBySpace.set(sid, arr);
-  }
+  
+  await Promise.all(
+    spaceIds.map(async (sid) => {
+      const { data, error } = await supabase.rpc('get_group_members_info', {
+        target_space_id: sid,
+      });
+      
+      if (error) {
+        console.warn('get_group_members_info error for', sid, error.message);
+        return;
+      }
+      
+      const initials = (data ?? []).map((row: any) => {
+        const name = row.display_name ?? '?';
+        return name.trim().charAt(0).toLocaleUpperCase('tr-TR');
+      });
+      
+      membersBySpace.set(sid, initials);
+    })
+  );
 
   const result: SpaceWithMeta[] = shared.map((s) => {
     const initials = membersBySpace.get(s.id) ?? [];
@@ -201,33 +198,24 @@ export type SpaceMemberInfo = {
 export async function getSpaceMembers(
   spaceId: string
 ): Promise<SpaceMemberInfo[]> {
-  const { data, error } = await supabase
-    .from('space_members')
-    .select(`
-      user_id,
-      joined_at,
-      profile:profiles ( display_name )
-    `)
-    .eq('space_id', spaceId)
-    .order('joined_at', { ascending: true });
+  const { data, error } = await supabase.rpc('get_group_members_info', {
+    target_space_id: spaceId,
+  });
 
   if (error) {
-    console.warn('getSpaceMembers error:', error.message);
+    console.warn('getSpaceMembers RPC error:', error.message);
     return [];
   }
 
-  const result: SpaceMemberInfo[] = [];
-  for (const row of (data ?? []) as any[]) {
-    const profile = Array.isArray(row.profile) ? row.profile[0] : row.profile;
-    const name: string = profile?.display_name ?? 'Bilinmeyen';
-    result.push({
+  return ((data ?? []) as any[]).map((row) => {
+    const name = row.display_name ?? 'Bilinmeyen';
+    return {
       user_id: row.user_id,
       display_name: name,
       initial: name.trim().charAt(0).toLocaleUpperCase('tr-TR'),
       joined_at: row.joined_at,
-    });
-  }
-  return result;
+    };
+  });
 }
 
 // ---------- Üye çıkarma ----------

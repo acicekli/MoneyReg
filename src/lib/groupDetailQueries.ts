@@ -53,23 +53,18 @@ export async function getSpaceDetail(spaceId: string): Promise<SpaceDetail | nul
     return null;
   }
 
-  // Üyeler (profiles join)
-  const { data: memberRows, error: memErr } = await supabase
-    .from('space_members')
-    .select(`
-      user_id,
-      profile:profiles ( display_name )
-    `)
-    .eq('space_id', spaceId);
+  // Üyeler (RPC — RLS'yi aşmak için)
+  const { data: memberData, error: memErr } = await supabase.rpc('get_group_members_info', {
+    target_space_id: spaceId,
+  });
 
   if (memErr) {
     // eslint-disable-next-line no-console
     console.warn('getSpaceDetail memErr:', memErr.message);
   }
 
-  const members: MemberInfo[] = ((memberRows ?? []) as any[]).map((row) => {
-    const profile = Array.isArray(row.profile) ? row.profile[0] : row.profile;
-    const name: string = profile?.display_name ?? 'Bilinmeyen';
+  const members: MemberInfo[] = ((memberData ?? []) as any[]).map((row) => {
+    const name: string = row.display_name ?? 'Bilinmeyen';
     return {
       user_id: row.user_id,
       display_name: name,

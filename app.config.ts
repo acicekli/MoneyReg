@@ -21,7 +21,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.acicekli.harcamatakip',
     adaptiveIcon: {
-      backgroundColor: '#ffffff',
+      foregroundImage: './assets/adaptive-icon.png',
+      backgroundColor: '#0D1B2A', // Koyu lacivert (tasarımına göre değiştir)
     },
   },
   web: {

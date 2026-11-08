@@ -328,6 +328,14 @@ export default function AddExpenseScreen() {
     return Number.isFinite(n) ? n : 0;
   }, [amountStr]);
 
+  const amountFontSize = useMemo(() => {
+    const len = formatAmountString(amountStr).length;
+    if (len <= 6) return 44;
+    if (len <= 9) return 36;
+    if (len <= 12) return 28;
+    return 22;
+  }, [amountStr]);
+
   // ---------- Fiş işlemleri ----------
   // Fotoğrafı yüklemeden önce küçült (boyut ve süre kazancı)
   const compressImage = async (uri: string): Promise<string> => {
@@ -720,13 +728,16 @@ export default function AddExpenseScreen() {
           <View style={styles.amountRow}>
             <Text style={styles.amountSymbol}>{CURRENCY_SYMBOL[currency]}</Text>
             <TextInput
-              style={styles.amountInput}
+              style={[styles.amountInput, { fontSize: amountFontSize }]}
               value={formatAmountString(amountStr)}
               onChangeText={handleAmountChange}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={colors.inkSoft}
               selectTextOnFocus
+              scrollEnabled={false}
+              multiline={false}
+              numberOfLines={1}
             />
           </View>
         </View>
@@ -1013,7 +1024,8 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.ink,
     padding: 0,
     margin: 0,
-    minWidth: 120,
+    flex: 1,
+    minWidth: 0,
     textAlign: 'left',
   },
 

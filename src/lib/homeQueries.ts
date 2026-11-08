@@ -65,19 +65,37 @@ export async function getRecentTransactions(
   spaceId: string,
   limit = 15
 ): Promise<Transaction[]> {
+  // Taksitleri tekleştirmek için son 100 kaydı çekip JS'te filtreleyeceğiz.
+  // (Veritabanında RPC yazana kadar en pratik yöntem)
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
     .eq('space_id', spaceId)
     .order('expense_date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(100);
 
   if (error) {
     console.warn('getRecentTransactions error:', error.message);
     return [];
   }
-  return (data ?? []) as Transaction[];
+
+  const raw = (data ?? []) as Transaction[];
+  const seenGroups = new Set<string>();
+  const filtered: Transaction[] = [];
+
+  for (const tx of raw) {
+    // Eğer bir taksit grubuna aitse, sadece grubun İLK karşılaşılan (en yeni) 
+    // taksitini listeye ekle, diğerlerini atla.
+    if (tx.installment_group_id) {
+      if (seenGroups.has(tx.installment_group_id)) continue;
+      seenGroups.add(tx.installment_group_id);
+    }
+    filtered.push(tx);
+    if (filtered.length >= limit) break;
+  }
+
+  return filtered;
 }
 
 // ---------- AllTransactions için: filtresiz TÜM harcamalar ----------
