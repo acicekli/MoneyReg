@@ -65,12 +65,17 @@ export async function getRecentTransactions(
   spaceId: string,
   limit = 15
 ): Promise<Transaction[]> {
+  // Gelecek tarihli (henüz vadesi gelmemiş) taksitleri ana ekranda göstermemek için
+  // bugünün tarihini alıyoruz.
+  const today = new Date();
+  const todayISO = today.toISOString().slice(0, 10);
+
   // Taksitleri tekleştirmek için son 100 kaydı çekip JS'te filtreleyeceğiz.
-  // (Veritabanında RPC yazana kadar en pratik yöntem)
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
     .eq('space_id', spaceId)
+    .lte('expense_date', todayISO) // Gelecek tarihlileri filtrele
     .order('expense_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(100);
@@ -85,8 +90,7 @@ export async function getRecentTransactions(
   const filtered: Transaction[] = [];
 
   for (const tx of raw) {
-    // Eğer bir taksit grubuna aitse, sadece grubun İLK karşılaşılan (en yeni) 
-    // taksitini listeye ekle, diğerlerini atla.
+    // Eğer bir taksit grubuna aitse, gruptan sadece 1 tane göster (tarihi en yakın olan)
     if (tx.installment_group_id) {
       if (seenGroups.has(tx.installment_group_id)) continue;
       seenGroups.add(tx.installment_group_id);

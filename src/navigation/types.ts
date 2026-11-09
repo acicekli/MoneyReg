@@ -7,7 +7,7 @@ export type AuthStackParamList = {
 
 export type HomeStackParamList = {
   Home: undefined;
-  AddExpense: { spaceId?: string; transactionId?: string } | undefined;
+  AddExpense: { spaceId?: string; transactionId?: string; installmentGroupId?: string } | undefined;
   AllTransactions: { spaceId?: string } | undefined;
 };
 
@@ -15,7 +15,7 @@ export type GroupsStackParamList = {
   Groups: undefined;
   CreateSpace: undefined;
   GroupDetail: { spaceId: string };
-  AddExpense: { spaceId?: string; transactionId?: string } | undefined;
+  AddExpense: { spaceId?: string; transactionId?: string; installmentGroupId?: string } | undefined;
   AllTransactions: { spaceId?: string } | undefined;
   CalculateModal: { spaceId: string };
   CalculateScreen: { spaceId: string };

@@ -100,6 +100,7 @@ export default function AddExpenseScreen() {
   const route = useRoute<RouteT>();
 
   const transactionId = route.params?.transactionId;
+  const transactionGroupId = (route.params as any)?.installmentGroupId;
   const isEditing = !!transactionId;
 
   const initialSpaceId = route.params?.spaceId;
@@ -263,10 +264,11 @@ export default function AddExpenseScreen() {
             setOriginalCurrency(tx.currency as Currency);
 
             // Taksitli harcama mı? Grup bilgilerini yükle
-            if (tx.installment_group_id && tx.total_installments) {
+            const groupIdToLoad = transactionGroupId || tx.installment_group_id;
+            if (groupIdToLoad && tx.total_installments) {
               setInstallmentEnabled(true);
               setInstallmentCount(tx.total_installments);
-              setOriginalGroupId(tx.installment_group_id);
+              setOriginalGroupId(groupIdToLoad);
               setExistingInstallmentCount(tx.total_installments);
               setAmountMode('total');
               // Not: title'dan "(1/3)" kısmını çıkar
@@ -274,12 +276,18 @@ export default function AddExpenseScreen() {
               setNote(cleanedNote);
 
               // Toplam tutarı hesapla (mevcut taksitlerin toplamı)
-              const groupRes = await getInstallmentGroup(tx.installment_group_id);
+              const groupRes = await getInstallmentGroup(groupIdToLoad);
               if (groupRes.ok && groupRes.transactions.length > 0) {
                 const total = groupRes.transactions.reduce((sum, t) => sum + t.amount, 0);
-                setAmountStr(Math.round(total * 100) / 100 + '');
-                // Not: toFixed(2) yerine string — handleAmountChange formatına uygun
                 setAmountStr((Math.round(total * 100) / 100).toFixed(2).replace('.', ','));
+                
+                // KİLİT NOKTA: Kullanıcı 2. taksiti düzenlese bile, yeni grubu 
+                // 1. taksitin tarihinden başlatmalıyız.
+                const firstTx = groupRes.transactions.find(tx => tx.installment_number === 1);
+                if (firstTx) {
+                  setDateISO(firstTx.expense_date);
+                  setOriginalDate(firstTx.expense_date); // Değişiklik kontrolü için
+                }
               }
             }
           } else {
@@ -634,12 +642,10 @@ export default function AddExpenseScreen() {
         }
         // SONRA eski grubu sil
         if (originalGroupId) {
+          // Eski grubu sil
           const delRes = await deleteInstallmentGroup(originalGroupId);
           if (!delRes.ok) {
-            Alert.alert(
-              'Kısmi başarı',
-              'Yeni grup kaydedildi ama eski grup silinemedi. Lütfen tekrar deneyin.'
-            );
+            console.warn('Eski taksit grubu silinemedi:', delRes.error);
           }
         }
         navigation.goBack();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +13,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../lib/auth-context';
 import { deleteTransaction } from '../lib/transactionQueries';
+import { deleteInstallmentGroup } from '../services/transactionService';
 import { enqueue } from '../lib/offlineQueue';
 import { useNetworkStatus } from '../lib/networkContext';
 import { getCached, setCached, CacheKeys } from '../lib/localCache';
@@ -445,8 +447,27 @@ export default function AllTransactionsModal() {
                 transactionId: t.id,
               });
             }}
-            onDelete={(t) => {
-              setDeletedTx(t as any);
+            onDelete={async (t) => {
+              if (t.installment_group_id) {
+                // Taksitliyse tüm grubu sil
+                if (isOnline) {
+                  const res = await deleteInstallmentGroup(t.installment_group_id);
+                  if (!res.ok) {
+                    Alert.alert('Silme Hatası', res.error);
+                    return;
+                  }
+                } else {
+                  await enqueue('delete_installment_group', { groupId: t.installment_group_id });
+                }
+                // Ekrandan da gizle
+                setAllRaw((prev) => prev.filter((x) => x.installment_group_id !== t.installment_group_id));
+                // Cache'i güncelle
+                const updated = allRaw.filter((x) => x.installment_group_id !== t.installment_group_id);
+                await setCached(CacheKeys.allTransactionsRaw, updated);
+              } else {
+                // Normal harcamaysa eski usul (UndoToast ile)
+                setDeletedTx(t as any);
+              }
             }}
           />
         )}

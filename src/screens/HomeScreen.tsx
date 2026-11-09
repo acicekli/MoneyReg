@@ -24,6 +24,7 @@ import {
   mapCategoriesById,
 } from '../lib/homeQueries';
 import { deleteTransaction } from '../lib/transactionQueries';
+import { deleteInstallmentGroup } from '../services/transactionService';
 import { enqueue } from '../lib/offlineQueue';
 import {
   transactionAmountInTRY,
@@ -156,6 +157,19 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Gece 00:00'da veriyi yenile (yeni taksitlerin düşmesi için)
+  useEffect(() => {
+    const checkMidnight = setInterval(() => {
+      const now = new Date();
+      // Saat 00:00 ile 00:01 arasındaysa yenile
+      if (now.getHours() === 0 && now.getMinutes() === 0) {
+        loadData();
+      }
+    }, 60000); // Her dakika kontrol et
+
+    return () => clearInterval(checkMidnight);
   }, [loadData]);
 
   useFocusEffect(
@@ -431,13 +445,28 @@ export default function HomeScreen() {
                 navigation.navigate('AddExpense', {
                   spaceId: t.space_id,
                   transactionId: t.id,
+                  // Taksitliyse grup ID'sini de gönderelim (AddExpense bunu kullanacak)
+                  installmentGroupId: t.installment_group_id || undefined,
                 })
               }
-              onDelete={(t) => {
-                // Optimistic: listeden hemen çıkar
-                setRecent((prev) => prev.filter((x) => x.id !== t.id));
-                // Kuyruğa ekle (birden fazla silme desteklensin)
-                setDeletedTxs((prev) => [...prev, t]);
+              onDelete={async (t) => {
+                // Optimistic: ekrandan hemen gizle
+                if (t.installment_group_id) {
+                  // Taksitliyse gruptaki tüm harcamaları listeden çıkar
+                  setRecent((prev) => prev.filter((x) => x.installment_group_id !== t.installment_group_id));
+                  
+                  // Arka planda tüm grubu sil
+                  if (isOnline) {
+                    await deleteInstallmentGroup(t.installment_group_id);
+                  } else {
+                    await enqueue('delete_installment_group', { groupId: t.installment_group_id });
+                  }
+                  loadData(); // Veriyi yenile
+                } else {
+                  // Taksitsizse normal harcama gibi sil
+                  setRecent((prev) => prev.filter((x) => x.id !== t.id));
+                  setDeletedTxs((prev) => [...prev, t]);
+                }
               }}
             />
 
