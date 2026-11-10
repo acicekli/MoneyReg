@@ -23,7 +23,8 @@ export type QueueItemType =
   | 'delete_transaction'
   | 'create_installment_group'
   | 'delete_installment_group'
-  | 'submit_feedback';
+  | 'submit_feedback'
+  | 'update_exchange_rate';
 
 export type QueueItem = {
   id: string;                    // client-side unique id
@@ -112,10 +113,18 @@ export async function enqueue(
     // oturum okunamadı → userId'siz kaydedilir
   }
 
+  if (!userId) {
+    console.warn(
+      '[offlineQueue] enqueue: userId okunamadı; öğe userId olmadan kaydediliyor. ' +
+        'Bu öğe, güvenlik gereği başka bir hesap tarafından senkronize edilmeyecek.'
+    );
+  }
+
   const item: QueueItem = {
     id: generateClientId(),
     type,
-    payload,
+    // Payload'un içine de userId'yi gömüyoruz (kuyruktan okurken lazım olacak)
+    payload: { ...payload, __userId: userId },
     createdAt: Date.now(),
     retryCount: 0,
     userId,

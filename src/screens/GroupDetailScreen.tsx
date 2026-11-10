@@ -284,13 +284,21 @@ export default function GroupDetailScreen() {
             })
           }
           onDelete={(t) => {
-            if (!detail) return;
-            // Optimistic
-            setDetail({
-              ...detail,
-              transactions: detail.transactions.filter((x) => x.id !== t.id),
+            // Optimistic: detaydan çıkar
+            setDetail((prev) => {
+              if (!prev) return prev;
+              const updated: SpaceDetail = {
+                ...prev,
+                transactions: prev.transactions.filter((x) => x.id !== t.id),
+              };
+              // Offline'da load() eski cache'i geri getireceği için
+              // cache'i burada elle güncelliyoruz.
+              if (!isOnline) {
+                setCached(CacheKeys.groupDetail(spaceId), updated);
+              }
+              return updated;
             });
-            // Kuyruğa ekle
+            // Undo toast için sakla
             setDeletedTxs((prev) => [...prev, t]);
           }}
         />
@@ -427,31 +435,16 @@ export default function GroupDetailScreen() {
             console.error('[onExpire] error:', e);
           } finally {
             setDeletedTxs([]);
-            load();
+            if (isOnline) {
+              // Online: sunucudan tazele
+              load();
+            } else {
+              // Offline: load() eski cache'i geri getirir; detay cache'i
+              // silme sırasında zaten güncellendi (aşağıdaki onDelete).
+            }
           }
         }}
       />
-
-      <TransactionDetailModal
-        visible={!!selectedTx}
-        transaction={selectedTx}
-        spaceName={detail?.space.name}
-        onClose={() => setSelectedTx(null)}
-        onEdit={
-          selectedTx && selectedTx.created_by === user?.id
-            ? () => {
-                const tx = selectedTx;
-                setSelectedTx(null);
-                navigation.navigate('AddExpense', {
-                  spaceId: tx.space_id,
-                  transactionId: tx.id,
-                });
-              }
-            : undefined
-        }
-
-      />
-
 
     </View>
   );

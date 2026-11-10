@@ -113,6 +113,8 @@ export default function TransactionDetailModal({
   const t = transaction;
   const tryValue = transactionAmountInTRY(t);
   const isForeign = t.currency !== 'TRY';
+  // Döviz harcaması ama kur henüz çekilememiş → TL karşılığı bilinmiyor
+  const isRatePending = isForeign && t.exchange_rate_snapshot == null;
   const hasReceipt = !!t.receipt_photo_url;
 
   return (
@@ -176,7 +178,13 @@ export default function TransactionDetailModal({
                   -{formatCurrency(t.amount, t.currency)}
                 </Text>
                 {isForeign && (
-                  <Text style={styles.amountTry}>≈ {formatCurrency(tryValue)}</Text>
+                  isRatePending ? (
+                    <Text style={styles.amountRatePending}>
+                      ⏳ Kur bilgisi bekleniyor
+                    </Text>
+                  ) : (
+                    <Text style={styles.amountTry}>≈ {formatCurrency(tryValue)}</Text>
+                  )
                 )}
               </View>
 
@@ -314,6 +322,12 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.ink,
   },
   amountTry: { color: colors.inkSoft, fontSize: 13, marginTop: spacing.xs },
+  amountRatePending: {
+    color: colors.inkSoft,
+    fontSize: 13,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+  },
 
   metaBox: { gap: spacing.md, marginBottom: spacing.lg },
   metaRow: {

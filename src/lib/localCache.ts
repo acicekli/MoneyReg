@@ -50,6 +50,7 @@ export const CacheKeys = {
   homeTransactions: 'home:transactions',
   homeMonthly: 'home:monthly',
   homeDisplayName: 'home:displayName',
+  homeSpaceId: 'home:spaceId',
   groupsList: 'groups:list',
   groupDetail: (spaceId: string) => `group:${spaceId}:detail`,
   groupTransactions: (spaceId: string) => `group:${spaceId}:transactions`,

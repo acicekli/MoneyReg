@@ -134,9 +134,32 @@ export async function getSpaceDetail(spaceId: string): Promise<SpaceDetail | nul
 
 export type CloseSpaceResult =
   | { ok: true }
-  | { ok: false; error: string };
+  | { ok: false; error: string; pendingRateCount?: number };
 
 export async function closeSpace(spaceId: string): Promise<CloseSpaceResult> {
+  // 1) Kur bilgisi bekleyen döviz harcaması var mı?
+  //    Varsa: sonlandırma engellenir (kur gelince bakiye/toplam doğru olur).
+  const { count, error: countErr } = await supabase
+    .from('transactions')
+    .select('id', { count: 'exact', head: true })
+    .eq('space_id', spaceId)
+    .neq('currency', 'TRY')
+    .is('exchange_rate_snapshot', null);
+
+  if (countErr) {
+    return { ok: false, error: countErr.message };
+  }
+  if (count && count > 0) {
+    return {
+      ok: false,
+      error:
+        `Bu grupta ${count} harcamanın kur bilgisi bekleniyor. ` +
+        `Kur bilgisi geldikten sonra grubu sonlandırabilirsin.`,
+      pendingRateCount: count,
+    };
+  }
+
+  // 2) Sonlandır
   const { error } = await supabase
     .from('spaces')
     .update({ status: 'closed' })

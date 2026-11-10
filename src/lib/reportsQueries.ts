@@ -28,6 +28,8 @@ export type ReportData = {
   rows: CategoryReportRow[];
   startDate: string;
   endDate: string;
+  /** Kur bilgisi henüz çekilememiş döviz harcamalarının sayısı */
+  pendingRateCount: number;
 };
 
 function toISODate(d: Date): string {
@@ -158,7 +160,7 @@ export async function getReportData(
 
   const spaceIds = await getSpaceIdsForScope(userId, scope);
   if (spaceIds.length === 0) {
-    return { totalTRY: 0, rows: [], startDate: start, endDate: end };
+    return { totalTRY: 0, rows: [], startDate: start, endDate: end, pendingRateCount: 0 };
   }
 
   let query = supabase
@@ -175,7 +177,7 @@ export async function getReportData(
   const { data: txRows, error: txErr } = await query;
   if (txErr) {
     console.warn('getReportData txErr:', txErr.message);
-    return { totalTRY: 0, rows: [], startDate: start, endDate: end };
+    return { totalTRY: 0, rows: [], startDate: start, endDate: end, pendingRateCount: 0 };
   }
 
   const transactions = (txRows ?? []) as Transaction[];
@@ -186,8 +188,12 @@ export async function getReportData(
 
   const totals = new Map<string, number>();
   let totalTRY = 0;
+  let pendingRateCount = 0;
 
   for (const t of transactions) {
+    if (t.currency !== 'TRY' && t.exchange_rate_snapshot == null) {
+      pendingRateCount++;
+    }
     const tryValue = transactionAmountInTRY(t);
     totalTRY += tryValue;
     const key = t.category_id ?? '__none__';
@@ -215,7 +221,7 @@ export async function getReportData(
     r.percentage = totalTRY > 0 ? (r.total / totalTRY) * 100 : 0;
   }
 
-  return { totalTRY, rows, startDate: start, endDate: end };
+  return { totalTRY, rows, startDate: start, endDate: end, pendingRateCount };
 }
 
 export type UpdateMonthStartDayResult =

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { formatCurrency, formatExpenseAmount, formatAmount as fmtAmount, formatPercent } from '../lib/format';
+import { formatCurrency } from '../lib/format';
 import {
   ActivityIndicator,
   Pressable,
@@ -53,7 +53,12 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [spaceId, setSpaceId] = useState<string | null>(null);
+  
+  // Sunucudan/Cache'ten gelen harcamalar
   const [recent, setRecent] = useState<Transaction[]>([]);
+  // Kuyrukta bekleyen (offline eklenen) harcamalar
+  const [pendingTxs, setPendingTxs] = useState<Transaction[]>([]);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [viewCurrency, setViewCurrency] = useState<ViewCurrency>('TRY');
   const [usdRate, setUsdRate] = useState<number | null>(null);
@@ -70,7 +75,7 @@ export default function HomeScreen() {
       await Promise.all([
         getCached<Transaction[]>(CacheKeys.homeTransactions),
         getCached<string>(CacheKeys.homeDisplayName),
-        getCached<string>(CacheKeys.homeDisplayName + ':spaceId'),
+        getCached<string>(CacheKeys.homeSpaceId),
         getCached<Category[]>(CacheKeys.categories),
       ]);
 
@@ -79,51 +84,65 @@ export default function HomeScreen() {
     if (cachedCats) setCategories(cachedCats);
     if (cachedRecent) setRecent(cachedRecent);
 
-    // Cache'ten bir şey geldiyse loading'i kapat (stale göster)
     const hasCache = cachedRecent !== null || cachedCats !== null;
     if (hasCache) setLoading(false);
 
-    // 2) Offline ise cache ile kal + kuyruktaki pending harcamaları göster
-    if (!isOnline) {
-      // Kuyruktaki create_transaction'ları geçici göster
-      const queue = await getQueue();
-      const pendingCreates: Transaction[] = queue
-        .filter((q) => q.type === 'create_transaction')
-        .map((q) => {
-          const p = q.payload;
-          return {
-            id: p.id,
-            space_id: p.space_id,
+    // 2) Kuyruktaki bekleyenleri HER ZAMAN oku (offline veya online farketmez)
+    const queue = await getQueue();
+    const pendingCreates: Transaction[] = [];
+
+    for (const q of queue) {
+      if (q.type === 'create_transaction') {
+        const p = q.payload;
+        pendingCreates.push({
+          id: p.id,
+          space_id: p.space_id,
+          created_by: user.id,
+          amount: p.amount,
+          currency: p.currency,
+          exchange_rate_snapshot: p.exchange_rate_snapshot ?? null,
+          category_id: p.category_id,
+          note: p.note ?? null,
+          expense_date: p.expense_date,
+          receipt_photo_url: p.receiptLocalUri ?? p.receipt_photo_url ?? null,
+          created_at: new Date(q.createdAt).toISOString(),
+          updated_at: new Date(q.createdAt).toISOString(),
+          installment_group_id: null,
+          installment_number: null,
+          total_installments: null,
+        } as Transaction);
+      } else if (q.type === 'create_installment_group') {
+        const rows = q.payload.rows ?? [];
+        for (const r of rows) {
+          pendingCreates.push({
+            id: `pending-${q.id}-${r.installment_number}`,
+            space_id: r.space_id,
             created_by: user.id,
-            amount: p.amount,
-            currency: p.currency,
-            exchange_rate_snapshot: p.exchange_rate_snapshot ?? null,
-            category_id: p.category_id,
-            note: p.note ?? null,
-            expense_date: p.expense_date,
-            receipt_photo_url: p.receiptLocalUri ?? p.receipt_photo_url ?? null,
+            amount: r.amount,
+            currency: r.currency,
+            exchange_rate_snapshot: r.exchange_rate_snapshot ?? null,
+            category_id: r.category_id,
+            note: r.note ?? null,
+            expense_date: r.expense_date,
+            receipt_photo_url: r.receipt_photo_url ?? null,
             created_at: new Date(q.createdAt).toISOString(),
             updated_at: new Date(q.createdAt).toISOString(),
-            // Offline kuyruğunda taksit yok — her zaman null
-            installment_group_id: null,
-            installment_number: null,
-            total_installments: null,
-          } as Transaction;
-        });
-
-      if (pendingCreates.length > 0) {
-        setRecent((prev) => {
-          const existingIds = new Set(prev.map((x) => x.id));
-          const newOnes = pendingCreates.filter((p) => !existingIds.has(p.id));
-          return [...newOnes, ...prev];
-        });
+            installment_group_id: r.installment_group_id || q.id,
+            installment_number: r.installment_number,
+            total_installments: r.total_installments,
+          } as Transaction);
+        }
       }
+    }
+    setPendingTxs(pendingCreates);
 
+    // 3) Offline ise burada dur, sunucuya gitme
+    if (!isOnline) {
       setLoading(false);
       return;
     }
 
-    // 3) Online → Supabase'den çek, cache'i güncelle
+    // 4) Online → Supabase'den çek, cache'i güncelle
     if (!hasCache) setLoading(true);
     setRateError(null);
 
@@ -139,7 +158,7 @@ export default function HomeScreen() {
       setCategories(cats);
       await Promise.all([
         setCached(CacheKeys.homeDisplayName, name),
-        setCached(CacheKeys.homeDisplayName + ':spaceId', sid),
+        setCached(CacheKeys.homeSpaceId, sid),
         setCached(CacheKeys.categories, cats),
       ]);
 
@@ -163,11 +182,10 @@ export default function HomeScreen() {
   useEffect(() => {
     const checkMidnight = setInterval(() => {
       const now = new Date();
-      // Saat 00:00 ile 00:01 arasındaysa yenile
       if (now.getHours() === 0 && now.getMinutes() === 0) {
         loadData();
       }
-    }, 60000); // Her dakika kontrol et
+    }, 60000);
 
     return () => clearInterval(checkMidnight);
   }, [loadData]);
@@ -207,11 +225,66 @@ export default function HomeScreen() {
     };
   }, []);
 
+  const categoryMap = useMemo(() => mapCategoriesById(categories), [categories]);
+
+  // ANA LİSTE MANTIĞI: recent + pendingTxs birleştir, tekleştir, tarihe göre sırala
+  const listItems: TransactionListItem[] = useMemo(() => {
+    const combined = [...pendingTxs, ...recent];
+    
+    const seenIds = new Set<string>();
+    const unique = combined.filter((t) => {
+      if (seenIds.has(t.id)) return false;
+      seenIds.add(t.id);
+      return true;
+    });
+
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    
+    // Gelecek tarihli olanları listeden çıkar
+    const pastTxs = unique.filter((t) => t.expense_date <= todayStr);
+    
+    // En eski tarihten en yeniye doğru sırala (Böylece tekleştirmede taksitin 1.'si kalır)
+    pastTxs.sort((a, b) => a.expense_date.localeCompare(b.expense_date));
+
+    const seenGroups = new Set<string>();
+    const filteredRecent: Transaction[] = [];
+    
+    for (const t of pastTxs) {
+      if (t.installment_group_id) {
+        if (seenGroups.has(t.installment_group_id)) continue;
+        seenGroups.add(t.installment_group_id);
+      }
+      filteredRecent.push(t);
+    }
+    
+    // Tekilleştirmeden sonra listeyi tekrar tarihe göre yeniden eskiye sırala
+    filteredRecent.sort((a, b) => b.expense_date.localeCompare(a.expense_date));
+    
+    // Son 12 kaydı al
+    const finalRecent = filteredRecent.slice(0, 12);
+
+    return finalRecent.map((t) => {
+      const cat = t.category_id ? categoryMap.get(t.category_id) : undefined;
+      return {
+        ...t,
+        category_name: cat?.name ?? (t.category_id ? null : 'Kategorisiz'),
+        category_icon: cat?.icon ?? (t.category_id ? null : '📦'),
+      };
+    });
+  }, [recent, pendingTxs, categoryMap]);
+
   const totalTRY = useMemo(() => {
     let sum = 0;
-    for (const t of recent) sum += transactionAmountInTRY(t);
+    for (const t of listItems) sum += transactionAmountInTRY(t);
     return sum;
-  }, [recent]);
+  }, [listItems]);
+
+  const pendingRateCount = useMemo(() => {
+    return listItems.filter(
+      (t) => t.currency !== 'TRY' && t.exchange_rate_snapshot == null
+    ).length;
+  }, [listItems]);
 
   const displayTotal = useMemo<{ value: number; symbol: string }>(() => {
     if (viewCurrency === 'TRY') return { value: totalTRY, symbol: '₺' };
@@ -223,145 +296,128 @@ export default function HomeScreen() {
     return { value: totalTRY / eurRate, symbol: '€' };
   }, [viewCurrency, totalTRY, usdRate, eurRate]);
 
-  const categoryMap = useMemo(() => mapCategoriesById(categories), [categories]);
-
-  // TransactionList items
-  const listItems: TransactionListItem[] = useMemo(() => {
-    return recent.map((t) => {
-      const cat = t.category_id ? categoryMap.get(t.category_id) : undefined;
-      return {
-        ...t,
-        category_name: cat?.name ?? (t.category_id ? null : 'Kategorisiz'),
-        category_icon: cat?.icon ?? (t.category_id ? null : '📦'),
-      };
-    });
-  }, [recent, categoryMap]);
-
   function formatDisplayTotal(): string {
     return formatCurrency(displayTotal.value, viewCurrency as 'TRY' | 'USD' | 'EUR');
   }
 
-
-
-
   const styles = useMemo(
     () =>
       StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bg },
-    center: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.bg,
-      padding: spacing.xl,
-    },
-
-    header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-    greeting: {
-      fontFamily: fonts.heading,
-      fontSize: 26,
-      color: colors.ink,
-    },
-    subtitle: { color: colors.inkSoft, marginTop: spacing.xs, fontSize: 14 },
-
-    totalCard: {
-      margin: spacing.lg,
-      padding: spacing.lg,
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.line,
-      alignItems: 'center',
-      fontFamily: fonts.body,
-    },
-    totalAmount: {
-      fontFamily: fonts.heading,
-      fontSize: 42,
-      color: colors.ink,
-      letterSpacing: 0.5,
-    },
-    rateError: {
-      marginTop: spacing.xs,
-      fontSize: 12,
-      color: colors.expense,
-      fontFamily: fonts.body,
-    },
-    currencyRow: {
-      flexDirection: 'row',
-      alignSelf: 'center',
-      marginTop: spacing.md,
-      gap: spacing.xs,
-      padding: 4,
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: 100,
-    },
-    currencyBtn: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-      borderRadius: 100,
-    },
-    currencyText: { color: colors.ink, fontSize: 13, fontWeight: '600', fontFamily: fonts.body },
-    currencyBtnActive: {
-      backgroundColor: colors.ink,
-    },
-    currencyTextActive: { color: colors.bg },
-
-    sectionTitle: {
-      fontFamily: fonts.heading,
-      fontSize: 16,
-      color: colors.ink,
-      marginHorizontal: spacing.lg,
-      marginTop: spacing.sm,
-      marginBottom: spacing.sm,
-    },
-
-    emptyBox: {
-      margin: spacing.lg,
-      padding: spacing.xl,
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.line,
-      alignItems: 'center',
-    },
-    emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
-    emptySub: {
-      color: colors.inkSoft,
-      marginTop: spacing.xs,
-      fontSize: 14,
-      textAlign: 'center',
-    },
-
-    allTxBtn: {
-      marginTop: spacing.md,
-      paddingVertical: spacing.md,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.line,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-    },
-    allTxBtnText: {
-      color: colors.accent,
-      fontFamily: fonts.bodyBold,
-      fontSize: 15,
-    },
-    fab: {
-      position: 'absolute',
-      right: spacing.lg,
-      bottom: spacing.lg,
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor: colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.25)',
-      elevation: 6,
-    },
-    fabText: { color: colors.accentInk, fontSize: 26, lineHeight: 28, fontWeight: '400' },
-  }),
+        container: { flex: 1, backgroundColor: colors.bg },
+        center: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.bg,
+          padding: spacing.xl,
+        },
+        header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+        greeting: {
+          fontFamily: fonts.heading,
+          fontSize: 26,
+          color: colors.ink,
+        },
+        subtitle: { color: colors.inkSoft, marginTop: spacing.xs, fontSize: 14 },
+        totalCard: {
+          margin: spacing.lg,
+          padding: spacing.lg,
+          backgroundColor: colors.surface,
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          borderColor: colors.line,
+          alignItems: 'center',
+          fontFamily: fonts.body,
+        },
+        totalAmount: {
+          fontFamily: fonts.heading,
+          fontSize: 42,
+          color: colors.ink,
+          letterSpacing: 0.5,
+        },
+        rateError: {
+          marginTop: spacing.xs,
+          fontSize: 12,
+          color: colors.expense,
+          fontFamily: fonts.body,
+        },
+        pendingRateNote: {
+          marginTop: spacing.xs,
+          fontSize: 12,
+          color: colors.inkSoft,
+          fontFamily: fonts.body,
+          textAlign: 'center',
+        },
+        currencyRow: {
+          flexDirection: 'row',
+          alignSelf: 'center',
+          marginTop: spacing.md,
+          gap: spacing.xs,
+          padding: 4,
+          borderWidth: 1,
+          borderColor: colors.line,
+          borderRadius: 100,
+        },
+        currencyBtn: {
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.xs,
+          borderRadius: 100,
+        },
+        currencyText: { color: colors.ink, fontSize: 13, fontWeight: '600', fontFamily: fonts.body },
+        currencyBtnActive: { backgroundColor: colors.ink },
+        currencyTextActive: { color: colors.bg },
+        sectionTitle: {
+          fontFamily: fonts.heading,
+          fontSize: 16,
+          color: colors.ink,
+          marginHorizontal: spacing.lg,
+          marginTop: spacing.sm,
+          marginBottom: spacing.sm,
+        },
+        emptyBox: {
+          margin: spacing.lg,
+          padding: spacing.xl,
+          backgroundColor: colors.surface,
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          borderColor: colors.line,
+          alignItems: 'center',
+        },
+        emptyTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink },
+        emptySub: {
+          color: colors.inkSoft,
+          marginTop: spacing.xs,
+          fontSize: 14,
+          textAlign: 'center',
+        },
+        allTxBtn: {
+          marginTop: spacing.md,
+          paddingVertical: spacing.md,
+          borderRadius: radius.md,
+          borderWidth: 1,
+          borderColor: colors.line,
+          backgroundColor: colors.surface,
+          alignItems: 'center',
+        },
+        allTxBtnText: {
+          color: colors.accent,
+          fontFamily: fonts.bodyBold,
+          fontSize: 15,
+        },
+        fab: {
+          position: 'absolute',
+          right: spacing.lg,
+          bottom: spacing.lg,
+          width: 46,
+          height: 46,
+          borderRadius: 23,
+          backgroundColor: colors.accent,
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.25)',
+          elevation: 6,
+        },
+        fabText: { color: colors.accentInk, fontSize: 26, lineHeight: 28, fontWeight: '400' },
+      }),
     [colors]
   );
 
@@ -382,8 +438,7 @@ export default function HomeScreen() {
     );
   }
 
-  const hasData = recent.length > 0;
-
+  const hasData = listItems.length > 0;
 
   return (
     <View style={styles.container}>
@@ -400,6 +455,13 @@ export default function HomeScreen() {
 
         {rateError && (
           <Text style={styles.rateError}>Kur bilgisi alınamadı: tekrar dene</Text>
+        )}
+
+        {pendingRateCount > 0 && (
+          <Text style={styles.pendingRateNote}>
+            ⏳ {pendingRateCount} harcamanın kur bilgisi bekleniyor
+            {viewCurrency !== 'TRY' ? ' (toplama dahil değil)' : ''}
+          </Text>
         )}
 
         <View style={styles.currencyRow}>
@@ -445,25 +507,28 @@ export default function HomeScreen() {
                 navigation.navigate('AddExpense', {
                   spaceId: t.space_id,
                   transactionId: t.id,
-                  // Taksitliyse grup ID'sini de gönderelim (AddExpense bunu kullanacak)
                   installmentGroupId: t.installment_group_id || undefined,
                 })
               }
               onDelete={async (t) => {
-                // Optimistic: ekrandan hemen gizle
                 if (t.installment_group_id) {
-                  // Taksitliyse gruptaki tüm harcamaları listeden çıkar
-                  setRecent((prev) => prev.filter((x) => x.installment_group_id !== t.installment_group_id));
-                  
-                  // Arka planda tüm grubu sil
+                  setRecent((prev) => {
+                    const updated = prev.filter(
+                      (x) => x.installment_group_id !== t.installment_group_id
+                    );
+                    if (!isOnline) {
+                      setCached(CacheKeys.homeTransactions, updated);
+                    }
+                    return updated;
+                  });
+
                   if (isOnline) {
                     await deleteInstallmentGroup(t.installment_group_id);
+                    loadData();
                   } else {
                     await enqueue('delete_installment_group', { groupId: t.installment_group_id });
                   }
-                  loadData(); // Veriyi yenile
                 } else {
-                  // Taksitsizse normal harcama gibi sil
                   setRecent((prev) => prev.filter((x) => x.id !== t.id));
                   setDeletedTxs((prev) => [...prev, t]);
                 }
@@ -496,7 +561,6 @@ export default function HomeScreen() {
               }
             : undefined
         }
-
       />
 
       <UndoToast
@@ -508,7 +572,6 @@ export default function HomeScreen() {
         }
         bottomOffset={100}
         onUndo={() => {
-          // Son silineni geri koy
           const last = deletedTxs[deletedTxs.length - 1];
           if (last) {
             setRecent((prev) => [last, ...prev]);
@@ -521,7 +584,6 @@ export default function HomeScreen() {
             for (const tx of deletedTxs) {
               if (isOnline) {
                 const r = await deleteTransaction(user.id, tx.id);
-                // Ağ hatası (hata kodu yok) → kuyruğa al, sonra senkronize edilir
                 if (!r.ok && !r.code) {
                   await enqueue('delete_transaction', { transactionId: tx.id });
                 }
@@ -533,7 +595,17 @@ export default function HomeScreen() {
             }
           } finally {
             setDeletedTxs([]);
-            loadData();
+            if (isOnline) {
+              loadData();
+            } else {
+              setRecent((prev) => {
+                const updated = prev.filter(
+                  (t) => !deletedTxs.some((d) => d.id === t.id)
+                );
+                setCached(CacheKeys.homeTransactions, updated);
+                return updated;
+              });
+            }
           }
         }}
       />
@@ -547,4 +619,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-

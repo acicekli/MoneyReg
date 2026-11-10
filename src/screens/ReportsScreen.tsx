@@ -68,6 +68,7 @@ export default function ReportsScreen() {
   const [scope, setScope] = useState<ReportScope>('all');
   const [loading, setLoading] = useState(true);
   const [totalTRY, setTotalTRY] = useState(0);
+  const [pendingRateCount, setPendingRateCount] = useState(0);
   const [rows, setRows] = useState<CategoryReportRow[]>([]);
   const [range, setRange] = useState<{ start: string; end: string } | null>(null);
 
@@ -82,6 +83,7 @@ export default function ReportsScreen() {
     setLoading(true);
     const data = await getReportData(user.id, scope, period);
     setTotalTRY(data.totalTRY);
+    setPendingRateCount(data.pendingRateCount);
     setRows(data.rows);
     setRange({ start: data.startDate, end: data.endDate });
     setLoading(false);
@@ -135,6 +137,11 @@ export default function ReportsScreen() {
             <View style={styles.totalBox}>
               <Text style={styles.totalLabel}>Toplam</Text>
               <Text style={styles.totalValue}>{formatCurrency(totalTRY)}</Text>
+              {pendingRateCount > 0 && (
+                <Text style={styles.pendingRateNote}>
+                  ⏳ {pendingRateCount} harcamanın kur bilgisi bekleniyor (toplama dahil değil)
+                </Text>
+              )}
             </View>
 
             <Text style={styles.sectionTitle}>Kategoriye göre</Text>
@@ -222,6 +229,13 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 32,
     color: colors.ink,
     marginTop: spacing.xs,
+  },
+  pendingRateNote: {
+    color: colors.inkSoft,
+    fontSize: 12,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 
   sectionTitle: {

@@ -66,9 +66,8 @@ export async function getRecentTransactions(
   limit = 15
 ): Promise<Transaction[]> {
   // Gelecek tarihli (henüz vadesi gelmemiş) taksitleri ana ekranda göstermemek için
-  // bugünün tarihini alıyoruz.
-  const today = new Date();
-  const todayISO = today.toISOString().slice(0, 10);
+  // bugünün YEREL tarihini alıyoruz (UTC değil).
+  const todayISO = getTodayLocalISO();
 
   // Taksitleri tekleştirmek için son 100 kaydı çekip JS'te filtreleyeceğiz.
   const { data, error } = await supabase
@@ -143,6 +142,20 @@ export async function getCategories(userId: string): Promise<Category[]> {
 }
 
 // ---------- Yardımcılar ----------
+
+/**
+ * Yerel saat diliminde bugünün tarihini YYYY-MM-DD olarak döndürür.
+ * toISOString() UTC döndürdüğü için TR (UTC+3) sabah saatlerinde
+ * bir gün öncesini verebiliyordu; bu, gelecek tarihli taksitlerin
+ * yanlışlıkla gizlenmesine yol açıyordu.
+ */
+export function getTodayLocalISO(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export function getCurrentMonthStart(): string {
   const now = new Date();

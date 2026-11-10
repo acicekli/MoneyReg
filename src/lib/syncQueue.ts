@@ -18,6 +18,7 @@ import {
   removeFromQueue,
   updateItemRetryCount,
   moveToFailed,
+  enqueue,
   type QueueItem,
 } from './offlineQueue';
 import {
@@ -66,7 +67,9 @@ async function processItem(item: QueueItem, userId: string): Promise<Outcome> {
             p.expense_date
           );
         } catch {
-          return 'failed';
+          // Kur çekilemedi → harcama döviz olarak, kur NULL ile kaydedilsin.
+          // Insert sonrası update_exchange_rate kuyruk öğesi oluşturulacak.
+          exchange_rate_snapshot = null;
         }
       }
 
@@ -89,7 +92,18 @@ async function processItem(item: QueueItem, userId: string): Promise<Outcome> {
         exchange_rate_snapshot,
         receipt_photo_url,
       });
-      return result.ok ? 'ok' : classify({ code: result.code, message: result.error });
+      if (result.ok) {
+        // Kur çekilemediyse, insert sonrası kur tazeleme öğesi oluştur.
+        if (p.currency !== 'TRY' && exchange_rate_snapshot == null) {
+          await enqueue('update_exchange_rate', {
+            transactionId: result.transaction.id,
+            currency: p.currency,
+            expense_date: p.expense_date,
+          });
+        }
+        return 'ok';
+      }
+      return classify({ code: result.code, message: result.error });
     }
 
     if (item.type === 'update_transaction') {
@@ -125,10 +139,56 @@ async function processItem(item: QueueItem, userId: string): Promise<Outcome> {
     if (item.type === 'create_installment_group') {
       const { rows } = item.payload;
       if (!Array.isArray(rows) || rows.length === 0) return 'ok';
-      // Postgres tek insert → atomik (ya hepsi ya hiç).
-      // uq_installment_group_number sayesinde tekrar denemede 23505 → ok.
-      const { error } = await supabase.from('transactions').insert(rows);
-      return classify(error);
+
+      // TRY dışı satır varsa harcamanın yapıldığı tarihteki kuru çek.
+      // Başarısız olursa NULL ile insert + her satır için kur tazeleme öğesi.
+      const sample = rows.find((r: any) => r.currency && r.currency !== 'TRY');
+      let rateRefreshed = true;
+      if (sample) {
+        try {
+          const freshRate = await getExchangeRateForDate(
+            sample.currency,
+            sample.expense_date
+          );
+          if (freshRate != null && freshRate > 0) {
+            for (const r of rows) {
+              if (r.currency !== 'TRY') r.exchange_rate_snapshot = freshRate;
+            }
+          } else {
+            rateRefreshed = false;
+            for (const r of rows) {
+              if (r.currency !== 'TRY') r.exchange_rate_snapshot = null;
+            }
+          }
+        } catch {
+          rateRefreshed = false;
+          for (const r of rows) {
+            if (r.currency !== 'TRY') r.exchange_rate_snapshot = null;
+          }
+        }
+      }
+
+      // Postgres tek insert → atomik. uq_installment_group_number sayesinde
+      // tekrar denemede 23505 → ok (idempotent).
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert(rows)
+        .select('id, currency, expense_date');
+
+      const outcome = classify(error);
+      if (outcome === 'ok' && !rateRefreshed && Array.isArray(data)) {
+        // Kur çekilemediyse her döviz satırı için tazeleme öğesi oluştur.
+        for (const row of data as any[]) {
+          if (row.currency && row.currency !== 'TRY') {
+            await enqueue('update_exchange_rate', {
+              transactionId: row.id,
+              currency: row.currency,
+              expense_date: row.expense_date,
+            });
+          }
+        }
+      }
+      return outcome;
     }
 
     if (item.type === 'delete_installment_group') {
@@ -138,6 +198,27 @@ async function processItem(item: QueueItem, userId: string): Promise<Outcome> {
         .from('transactions')
         .delete()
         .eq('installment_group_id', groupId);
+      return classify(error);
+    }
+
+    if (item.type === 'update_exchange_rate') {
+      const p = item.payload;
+      if (!p?.transactionId || !p?.currency || !p?.expense_date) {
+        return 'ok'; // geçersiz payload → kuyruktan çıkar
+      }
+      let rate: number | null = null;
+      try {
+        rate = await getExchangeRateForDate(p.currency, p.expense_date);
+      } catch {
+        return 'network'; // kur API'sine ulaşılamıyor → sonra tekrar dene
+      }
+      if (rate == null || rate <= 0) {
+        return 'failed'; // API beklenmeyen değer döndü → kalıcı hata
+      }
+      const { error } = await supabase
+        .from('transactions')
+        .update({ exchange_rate_snapshot: rate })
+        .eq('id', p.transactionId);
       return classify(error);
     }
 
@@ -181,10 +262,19 @@ export async function processQueue(userId: string): Promise<SyncResult> {
   running = true;
 
   try {
-    // Sadece bu kullanıcının öğeleri (userId'siz eski öğeler dahil)
-    const queue = (await getQueue()).filter(
-      (item) => !item.userId || item.userId === userId
-    );
+    // Sadece bu kullanıcının öğeleri işlenir.
+    // userId taşımayan (oturum okunamadığı için kaydedilmiş) öğeler
+    // başka bir hesaba yazılmasın diye kuyrukta bırakılır.
+    const all = await getQueue();
+    const queue = all.filter((item) => item.userId === userId);
+
+    const orphanCount = all.length - queue.length;
+    if (orphanCount > 0) {
+      console.warn(
+        `[sync] ${orphanCount} kuyruk öğesi userId taşımıyor; ` +
+          `yanlış hesaba yazılmaması için atlandı.`
+      );
+    }
     if (queue.length === 0) {
       return { processed: 0, failed: 0, total: 0, dropped: 0 };
     }

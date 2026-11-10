@@ -122,6 +122,8 @@ function TransactionRow({
   const styles = useThemedStyles(makeStyles);
   const tryValue = transactionAmountInTRY(t);
   const isForeign = t.currency !== 'TRY';
+  // Döviz harcaması ama kur henüz çekilememiş → TL karşılığı bilinmiyor
+  const isRatePending = isForeign && t.exchange_rate_snapshot == null;
   const headerIcon = showCategory ? t.category_icon ?? '📦' : null;
   const headerText = showCategory ? t.category_name ?? 'Kategorisiz' : null;
   const hasReceipt = !!t.receipt_photo_url;
@@ -226,7 +228,13 @@ function TransactionRow({
         <Text style={[styles.txAmount, isFlat && styles.txAmountFlat]}>
           -{formatCurrency(t.amount, t.currency)}
         </Text>
-        {isForeign && <Text style={styles.txTry}>≈ {formatCurrency(tryValue)}</Text>}
+        {isForeign && (
+          isRatePending ? (
+            <Text style={styles.txRatePending}>⏳ kur bekleniyor</Text>
+          ) : (
+            <Text style={styles.txTry}>≈ {formatCurrency(tryValue)}</Text>
+          )
+        )}
         {showPayer && t.payer_display_name ? (
           <Text style={styles.txPayer} numberOfLines={1}>{t.payer_display_name} ödedi</Text>
         ) : null}
@@ -311,6 +319,7 @@ const makeStyles = (colors: ThemeColors) =>
 
   txAmount: { fontSize: 16, fontWeight: '700', color: colors.ink },
   txTry: { color: colors.inkSoft, fontSize: 11, marginTop: 2 },
+  txRatePending: { color: colors.inkSoft, fontSize: 11, marginTop: 2, fontStyle: 'italic' },
   txPayer: { color: colors.inkSoft, fontSize: 11, marginTop: 4, textAlign: 'right' },
 
   actionsWrap: {

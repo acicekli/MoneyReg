@@ -14,7 +14,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../lib/auth-context';
 import { deleteTransaction } from '../lib/transactionQueries';
 import { deleteInstallmentGroup } from '../services/transactionService';
-import { enqueue } from '../lib/offlineQueue';
+import { enqueue, getQueue } from '../lib/offlineQueue';
 import { useNetworkStatus } from '../lib/networkContext';
 import { getCached, setCached, CacheKeys } from '../lib/localCache';
 import { getAllTransactions, type TransactionScope } from '../lib/homeQueries';
@@ -74,7 +74,6 @@ function getEffectiveDay(year: number, month: number, day: number): number {
   return Math.min(day, lastDayOfMonth);
 }
 
-// Belirtilen ay başı gününe göre mevcut periyodun başlangıcını bulur
 function getStartOfCurrentPeriod(monthStartDay: number): Date {
   const now = new Date();
   const thisEff = getEffectiveDay(now.getFullYear(), now.getMonth(), monthStartDay);
@@ -87,14 +86,12 @@ function getStartOfCurrentPeriod(monthStartDay: number): Date {
   }
 }
 
-// Mevcut periyodun başlangıcından 1 gün öncesi (Geçen dönemin bitişi)
 function getEndOfLastPeriod(startOfCurrent: Date): Date {
   const d = new Date(startOfCurrent);
   d.setDate(d.getDate() - 1);
   return d;
 }
 
-// Geçen dönemin başlangıcı
 function getStartOfLastPeriod(monthStartDay: number): Date {
   const currentStart = getStartOfCurrentPeriod(monthStartDay);
   const prev = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
@@ -123,6 +120,7 @@ export default function AllTransactionsModal() {
 
   const [loading, setLoading] = useState(true);
   const [allRaw, setAllRaw] = useState<Transaction[]>([]);
+  const [pendingQueue, setPendingQueue] = useState<Transaction[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedTx, setSelectedTx] = useState<TransactionListItem | null>(null);
@@ -132,13 +130,11 @@ export default function AllTransactionsModal() {
   const [scopeOpen, setScopeOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
 
-  // Ay başı gününü al (Bu Dönem/Geçen Dönem için)
   useEffect(() => {
     if (!user) return;
     getMonthStartDaySetting(user.id).then(setMonthStartDay);
   }, [user]);
 
-  // Kategorileri cache'ten al
   useEffect(() => {
     (async () => {
       const cachedCats = await getCached<Category[]>(CacheKeys.categories);
@@ -146,7 +142,6 @@ export default function AllTransactionsModal() {
     })();
   }, []);
 
-  // Grup üyeleri (grup modunda)
   useEffect(() => {
     if (!isGroupMode || !initialSpaceId) return;
     (async () => {
@@ -155,16 +150,12 @@ export default function AllTransactionsModal() {
     })();
   }, [isGroupMode, initialSpaceId]);
 
-  // ============================================================
-  // VERİ YÜKLEME (tek cache key: all-transactions:raw)
-  // ============================================================
   const load = useCallback(async () => {
     if (!user) return;
 
-    // 1) CACHE'ten oku
     const [cachedRaw, cachedSpaces, cachedCats] = await Promise.all([
       getCached<Transaction[]>(CacheKeys.allTransactionsRaw),
-      getCached<Space[]>('all-transactions:spaces'),
+      getCached<Space[]>(CacheKeys.allTransactionsSpaces),
       getCached<Category[]>(CacheKeys.categories),
     ]);
 
@@ -175,13 +166,27 @@ export default function AllTransactionsModal() {
     if (cachedSpaces) setSpaces(cachedSpaces);
     if (cachedCats) setCategories(cachedCats);
 
-    // 2) Offline ise cache ile kal
+    // Kuyruktaki bekleyenleri her zaman oku
+    const queue = await getQueue();
+    const pending: Transaction[] = [];
+    for (const q of queue) {
+      if (q.type === 'create_transaction') {
+        const p = q.payload;
+        pending.push({ ...p, id: p.id, created_at: new Date(q.createdAt).toISOString() } as Transaction);
+      } else if (q.type === 'create_installment_group') {
+        const rows = q.payload.rows ?? [];
+        for (const r of rows) {
+          pending.push({ ...r, id: `pending-${q.id}-${r.installment_number}`, created_at: new Date(q.createdAt).toISOString() } as Transaction);
+        }
+      }
+    }
+    setPendingQueue(pending);
+
     if (!isOnline) {
       setLoading(false);
       return;
     }
 
-    // 3) Online → çek + cache
     if (!cachedRaw) setLoading(true);
     try {
       const [rawData, spaceData, catData] = await Promise.all([
@@ -200,7 +205,7 @@ export default function AllTransactionsModal() {
 
       await Promise.all([
         setCached(CacheKeys.allTransactionsRaw, rawData),
-        setCached('all-transactions:spaces', spaceData),
+        setCached(CacheKeys.allTransactionsSpaces, spaceData),
         setCached(CacheKeys.categories, catData),
       ]);
     } finally {
@@ -212,9 +217,6 @@ export default function AllTransactionsModal() {
     load();
   }, [load]);
 
-  // ============================================================
-  // LOCAL FILTER (Supabase'e gitmez — JS'te uygulanır)
-  // ============================================================
   const spaceById = useMemo(() => {
     const m = new Map<string, Space>();
     for (const s of spaces) m.set(s.id, s);
@@ -224,11 +226,9 @@ export default function AllTransactionsModal() {
   const filtered = useMemo(() => {
     let result = allRaw;
 
-    // 1) Grup modu → sadece o space
     if (initialSpaceId) {
       result = result.filter((t) => t.space_id === initialSpaceId);
     } else {
-      // 2) Scope filtresi (genel mod)
       if (scope === 'personal') {
         result = result.filter((t) => {
           const s = spaceById.get(t.space_id);
@@ -240,15 +240,12 @@ export default function AllTransactionsModal() {
           return s?.type === 'shared';
         });
       }
-      // scope === 'all' → hepsi
     }
 
-    // 3) Zaman Filtresi (Bu Dönem, Geçen Dönem, vs.)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayISO = toISODate(today);
 
-    // Gelecek veya Tümü seçiliyse zaman filtresini uygulama
     const effectivePeriod = (listFilter === 'future' || listFilter === 'all') ? 'all' : period;
 
     if (effectivePeriod === 'this_period') {
@@ -272,16 +269,13 @@ export default function AllTransactionsModal() {
       const d = new Date(today); d.setFullYear(d.getFullYear() - 1);
       result = result.filter((t) => t.expense_date >= toISODate(d) && t.expense_date <= todayISO);
     }
-    // period === 'all' ise dokunma
 
-    // 4) Geçmiş / Gelecek / Tümü Filtresi
     if (listFilter === 'past') {
       result = result.filter((t) => t.expense_date <= todayISO);
     } else if (listFilter === 'future') {
       result = result.filter((t) => t.expense_date > todayISO);
     }
 
-    // 4) Member filtresi (grup modu)
     if (isGroupMode && memberIds.length > 0) {
       result = result.filter((t) => memberIds.includes(t.created_by));
     }
@@ -289,15 +283,35 @@ export default function AllTransactionsModal() {
     return result;
   }, [allRaw, scope, period, listFilter, monthStartDay, memberIds, initialSpaceId, isGroupMode, spaceById]);
 
-  // Görüntülenecek harcamalar (silinen hariç)
+  // Geçmiş / Gelecek / Tümü filtresini kuyruktaki verilere de uyguluyoruz!
   const displayList = useMemo(() => {
-    if (!deletedTx) return filtered;
-    return filtered.filter((t) => t.id !== deletedTx.id);
-  }, [filtered, deletedTx]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = toISODate(today);
 
-  // ============================================================
-  // LİSTE HAZIRLAMA
-  // ============================================================
+    let queueList = pendingQueue.filter((t) => {
+      if (listFilter === 'past') return t.expense_date <= todayISO;
+      if (listFilter === 'future') return t.expense_date > todayISO;
+      return true;
+    });
+
+    if (deletedTx) {
+      queueList = queueList.filter((t) => t.id !== deletedTx.id);
+    }
+
+    let serverList = filtered;
+    if (deletedTx) {
+      serverList = serverList.filter((t) => t.id !== deletedTx.id);
+    }
+
+    const seenIds = new Set(queueList.map((x) => x.id));
+    const uniqueServerList = serverList.filter((t) => !seenIds.has(t.id));
+
+    const combined = [...queueList, ...uniqueServerList];
+    combined.sort((a, b) => b.expense_date.localeCompare(a.expense_date));
+    return combined;
+  }, [pendingQueue, filtered, deletedTx, listFilter]);
+
   const categoryMap = useMemo(() => {
     const m = new Map<string, Category>();
     for (const c of categories) m.set(c.id, c);
@@ -323,6 +337,12 @@ export default function AllTransactionsModal() {
     return sum;
   }, [displayList]);
 
+  const pendingRateCount = useMemo(() => {
+    return displayList.filter(
+      (t) => t.currency !== 'TRY' && t.exchange_rate_snapshot == null
+    ).length;
+  }, [displayList]);
+
   const memberLabel =
     memberIds.length === 0
       ? 'Tümü'
@@ -340,7 +360,6 @@ export default function AllTransactionsModal() {
 
   return (
     <View style={styles.root}>
-      {/* Dropdown butonları */}
       <View style={styles.dropdownRow}>
         <Pressable
           style={[styles.dropdownBtn, (listFilter === 'future' || listFilter === 'all') && { opacity: 0.5 }]}
@@ -386,7 +405,6 @@ export default function AllTransactionsModal() {
         )}
       </View>
 
-      {/* Geçmiş / Gelecek / Tümü Butonları */}
       <View style={styles.segmentContainer}>
         {LIST_OPTIONS.map((opt) => {
           const active = listFilter === opt.value;
@@ -396,12 +414,9 @@ export default function AllTransactionsModal() {
               style={[styles.segmentBtn, active && styles.segmentBtnActive]}
               onPress={() => {
                 setListFilter(opt.value);
-                // Geçmiş seçilirse varsayılan olarak Bu Dönem gelsin
                 if (opt.value === 'past') {
                   setPeriod('this_period');
-                } 
-                // Gelecek veya Tümü seçilirse zaman filtresi kapansın (Tüm Zamanlar)
-                else {
+                } else {
                   setPeriod('all');
                 }
               }}
@@ -414,18 +429,23 @@ export default function AllTransactionsModal() {
         })}
       </View>
 
-      {/* Toplam */}
       <View style={styles.totalRow}>
         <Text style={styles.totalLabel}>{displayList.length} harcama</Text>
-        <Text style={styles.totalValue}>
-          ₺{totalTRY.toLocaleString('tr-TR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.totalValue}>
+            ₺{totalTRY.toLocaleString('tr-TR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </Text>
+          {pendingRateCount > 0 && (
+            <Text style={styles.pendingRateNote}>
+              ⏳ {pendingRateCount} harcamanın kur bilgisi bekleniyor (toplama dahil değil)
+            </Text>
+          )}
+        </View>
       </View>
 
-      {/* Liste */}
       <ScrollView contentContainerStyle={styles.listContent}>
         {loading ? (
           <View style={styles.center}>
@@ -449,7 +469,6 @@ export default function AllTransactionsModal() {
             }}
             onDelete={async (t) => {
               if (t.installment_group_id) {
-                // Taksitliyse tüm grubu sil
                 if (isOnline) {
                   const res = await deleteInstallmentGroup(t.installment_group_id);
                   if (!res.ok) {
@@ -459,13 +478,14 @@ export default function AllTransactionsModal() {
                 } else {
                   await enqueue('delete_installment_group', { groupId: t.installment_group_id });
                 }
-                // Ekrandan da gizle
-                setAllRaw((prev) => prev.filter((x) => x.installment_group_id !== t.installment_group_id));
-                // Cache'i güncelle
-                const updated = allRaw.filter((x) => x.installment_group_id !== t.installment_group_id);
-                await setCached(CacheKeys.allTransactionsRaw, updated);
+                setAllRaw((prev) => {
+                  const updated = prev.filter(
+                    (x) => x.installment_group_id !== t.installment_group_id
+                  );
+                  setCached(CacheKeys.allTransactionsRaw, updated);
+                  return updated;
+                });
               } else {
-                // Normal harcamaysa eski usul (UndoToast ile)
                 setDeletedTx(t as any);
               }
             }}
@@ -473,7 +493,6 @@ export default function AllTransactionsModal() {
         )}
       </ScrollView>
 
-      {/* Zaman dropdown modal */}
       <Modal
         visible={periodOpen}
         transparent
@@ -513,7 +532,6 @@ export default function AllTransactionsModal() {
         </Pressable>
       </Modal>
 
-      {/* Kapsam dropdown modal */}
       <Modal
         visible={scopeOpen}
         transparent
@@ -553,7 +571,6 @@ export default function AllTransactionsModal() {
         </Pressable>
       </Modal>
 
-      {/* Kişiler dropdown modal */}
       <Modal
         visible={membersOpen}
         transparent
@@ -569,7 +586,6 @@ export default function AllTransactionsModal() {
             onPress={(e) => e.stopPropagation()}
           >
             <Text style={styles.dropdownSheetTitle}>Kişiler</Text>
-
             <ScrollView style={{ maxHeight: 320 }}>
               {members.map((m) => {
                 const active = memberIds.includes(m.user_id);
@@ -592,7 +608,6 @@ export default function AllTransactionsModal() {
                 );
               })}
             </ScrollView>
-
             <View style={styles.dropdownFooter}>
               <Pressable
                 style={styles.dropdownFooterBtn}
@@ -624,7 +639,6 @@ export default function AllTransactionsModal() {
         </Pressable>
       </Modal>
 
-      {/* Detay modal */}
       <TransactionDetailModal
         visible={!!selectedTx}
         transaction={selectedTx}
@@ -643,7 +657,6 @@ export default function AllTransactionsModal() {
         }
       />
 
-      {/* Undo toast */}
       <UndoToast
         visible={!!deletedTx}
         message="Harcama silindi"
@@ -654,16 +667,22 @@ export default function AllTransactionsModal() {
         onExpire={async () => {
           if (deletedTx && user) {
             if (isOnline) {
-              await deleteTransaction(user.id, deletedTx.id);
+              const r = await deleteTransaction(user.id, deletedTx.id);
+              if (!r.ok && !r.code) {
+                await enqueue('delete_transaction', {
+                  transactionId: deletedTx.id,
+                });
+              }
             } else {
               await enqueue('delete_transaction', {
                 transactionId: deletedTx.id,
               });
             }
-            // Cache'ten de sil
-            const updated = allRaw.filter((t) => t.id !== deletedTx.id);
-            setAllRaw(updated);
-            await setCached(CacheKeys.allTransactionsRaw, updated);
+            setAllRaw((prev) => {
+              const updated = prev.filter((t) => t.id !== deletedTx.id);
+              setCached(CacheKeys.allTransactionsRaw, updated);
+              return updated;
+            });
             setDeletedTx(null);
           }
         }}
@@ -829,6 +848,12 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.ink,
     fontFamily: fonts.heading,
     fontSize: 18,
+  },
+  pendingRateNote: {
+    color: colors.inkSoft,
+    fontSize: 11,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
 
   listContent: {

@@ -188,6 +188,15 @@ export async function updateTransaction(
   if (!input.space_id) {
     return { ok: false, error: 'Alan seçilmedi.', code: 'validation' };
   }
+  if (input.currency !== 'TRY') {
+    if (
+      input.exchange_rate_snapshot == null ||
+      !Number.isFinite(input.exchange_rate_snapshot) ||
+      input.exchange_rate_snapshot <= 0
+    ) {
+      return { ok: false, error: 'Kur bilgisi geçersiz.', code: 'validation' };
+    }
+  }
 
   const payload = {
     space_id: input.space_id,

@@ -460,6 +460,14 @@ export default function AddExpenseScreen() {
       if (!isOnline) {
         // ─── TAKSİT KAPATILDI (offline düzenleme) ───
         if (isEditing && originalGroupId && !installmentEnabled) {
+          // TRY için kur null; TRY dışı için mevcut kur (varsa) kullanılır.
+          // Kur yoksa harcama null kurla kaydedilir; syncQueue kur tazeleme
+          // için update_exchange_rate kuyruk öğesi oluşturacak.
+          const effectiveRate =
+            currency === 'TRY'
+              ? null
+              : (existingTx?.exchange_rate_snapshot ?? null);
+
           const baseInput = {
             space_id: spaceId,
             category_id: effectiveCategoryId,
@@ -470,12 +478,21 @@ export default function AddExpenseScreen() {
             receipt_photo_url: existingReceiptPath ?? null,
             receiptLocalUri: receiptUri ?? null,
           };
+          const newId = generateClientId();
           // ÖNCE yeni tek transaction
           await enqueue('create_transaction', {
-            id: generateClientId(),
+            id: newId,
             ...baseInput,
-            exchange_rate_snapshot: existingTx?.exchange_rate_snapshot ?? null,
+            exchange_rate_snapshot: effectiveRate,
           });
+          // TRY dışı + kur yoksa tazeleme öğesi
+          if (currency !== 'TRY' && effectiveRate == null) {
+            await enqueue('update_exchange_rate', {
+              transactionId: newId,
+              currency,
+              expense_date: dateISO,
+            });
+          }
           // SONRA eski grubu sil
           await enqueue('delete_installment_group', { groupId: originalGroupId });
           navigation.goBack();
@@ -642,10 +659,15 @@ export default function AddExpenseScreen() {
         }
         // SONRA eski grubu sil
         if (originalGroupId) {
-          // Eski grubu sil
           const delRes = await deleteInstallmentGroup(originalGroupId);
           if (!delRes.ok) {
-            console.warn('Eski taksit grubu silinemedi:', delRes.error);
+            Alert.alert(
+              'Kısmi başarı',
+              'Yeni taksitler kaydedildi ama eski taksit grubu silinemedi. ' +
+                'Lütfen tekrar deneyin. (' + delRes.error + ')'
+            );
+            setSaving(false);
+            return;
           }
         }
         navigation.goBack();
